@@ -1526,3 +1526,246 @@ img { max-width:100%; display:block }
   .hdr-nav .nv[data-nav="about"] { display:none }
   .am-steps { grid-template-columns:1fr }
 }
+
+/* ══════════════════════════════════════════════
+   FACT MAZE v5 — 새로운 컴포넌트 스타일
+══════════════════════════════════════════════ */
+
+/* ── GAN 상태 패널 (업로드 사이드) ── */
+.gan-status-panel {
+  background: linear-gradient(135deg, rgba(123,47,255,.08), rgba(0,212,255,.06));
+  border: 1px solid rgba(123,47,255,.3);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 16px;
+}
+.gsp-title {
+  font-size: 12px; font-weight: 600; color: var(--c2);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.gsp-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--c2); animation: pulse 1.5s infinite;
+}
+.gsp-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;
+}
+.gsp-item { text-align: center; }
+.gsp-val { font-size: 18px; font-weight: 700; color: var(--c1); }
+.gsp-lbl { font-size: 10px; color: var(--t3); margin-top: 2px; }
+.gsp-weights {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.gsp-weight-bar {
+  flex: 1; min-width: 60px;
+  background: rgba(255,255,255,.05); border-radius: 6px;
+  padding: 4px 6px; font-size: 10px;
+}
+.gsp-w-label { color: var(--t3); margin-bottom: 2px; }
+.gsp-w-track {
+  height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; overflow: hidden;
+}
+.gsp-w-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--c2), var(--c1));
+  transition: width .5s ease;
+}
+.gsp-w-val { font-size: 9px; color: var(--c1); margin-top: 2px; text-align: right; }
+
+/* ── 레이더 차트 ── */
+.radar-section {
+  margin-top: 24px; text-align: center;
+}
+.radar-title {
+  font-size: 13px; font-weight: 600; color: var(--t2); margin-bottom: 12px;
+}
+#radar-chart { max-width: 300px; margin: 0 auto; display: block; }
+
+/* ── GAN 탭 ── */
+.gan-tab-content { padding: 4px; }
+.gan-header {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: linear-gradient(135deg, rgba(123,47,255,.1), rgba(0,212,255,.07));
+  border: 1px solid rgba(123,47,255,.25);
+  border-radius: 14px; padding: 18px; margin-bottom: 20px;
+}
+.gh-icon { font-size: 36px; line-height: 1; }
+.gh-title { font-size: 16px; font-weight: 700; color: var(--t1); }
+.gh-sub { font-size: 12px; color: var(--t3); margin-top: 4px; line-height: 1.5; }
+
+.gan-learn-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
+}
+.glg-card {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 10px;
+  padding: 14px; text-align: center;
+}
+.glg-val {
+  font-size: 22px; font-weight: 800; color: var(--c1);
+  font-family: 'Space Grotesk', monospace;
+}
+.glg-lbl { font-size: 11px; color: var(--t3); margin-top: 4px; }
+
+.gan-weights-title {
+  font-size: 13px; font-weight: 600; color: var(--t2); margin-bottom: 12px;
+}
+.gan-weights-vis { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.gwv-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.gwv-label {
+  font-size: 11px; color: var(--t3); width: 120px; flex-shrink: 0;
+  font-family: monospace;
+}
+.gwv-track {
+  flex: 1; height: 8px;
+  background: rgba(255,255,255,.08); border-radius: 4px; overflow: hidden;
+}
+.gwv-fill {
+  height: 100%; border-radius: 4px;
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+.gwv-val {
+  font-size: 11px; font-weight: 600; width: 40px; text-align: right;
+  font-family: monospace;
+}
+
+.gan-explain {
+  background: rgba(0,0,0,.2); border-radius: 10px;
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.ge-step { display: flex; gap: 12px; align-items: flex-start; }
+.ge-num {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--c2), var(--c1));
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.ge-text { font-size: 12px; color: var(--t2); line-height: 1.5; }
+
+/* ── 외부 검증 탭 ── */
+.ext-header { margin-bottom: 16px; }
+.ext-title { font-size: 15px; font-weight: 700; color: var(--t1); }
+.ext-sub { font-size: 12px; color: var(--t3); margin-top: 4px; }
+.ext-placeholder {
+  text-align: center; padding: 40px; color: var(--t3); font-size: 13px;
+}
+.ext-results { display: flex; flex-direction: column; gap: 10px; }
+.ext-card {
+  background: var(--bg2); border: 1px solid var(--bd);
+  border-radius: 12px; padding: 14px;
+  display: flex; gap: 12px; align-items: flex-start;
+  transition: border-color .2s, transform .2s;
+}
+.ext-card:hover { border-color: var(--c1); transform: translateX(2px); }
+.ext-card.confirmed-ai { border-color: rgba(255,51,102,.4); background: rgba(255,51,102,.05); }
+.ext-card-icon {
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(0,212,255,.15), rgba(123,47,255,.1));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.ext-card-body { flex: 1; }
+.ext-card-name { font-size: 13px; font-weight: 600; color: var(--t1); margin-bottom: 4px; }
+.ext-card-desc { font-size: 11px; color: var(--t3); margin-bottom: 6px; line-height: 1.4; }
+.ext-card-note {
+  font-size: 11px; color: var(--org); background: rgba(255,153,0,.1);
+  padding: 4px 8px; border-radius: 5px; display: inline-block;
+}
+.ext-card-note.ai-confirmed {
+  color: var(--red); background: rgba(255,51,102,.1);
+}
+.ext-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--c1);
+  border: 1px solid rgba(0,212,255,.3); border-radius: 6px;
+  padding: 5px 10px; background: rgba(0,212,255,.06);
+  text-decoration: none; cursor: pointer;
+  transition: all .2s; margin-top: 6px;
+}
+.ext-btn:hover { background: rgba(0,212,255,.15); border-color: var(--c1); }
+
+/* ── 물리 지표 헤더 ── */
+.metrics-header {
+  font-size: 13px; font-weight: 600; color: var(--c1);
+  margin-bottom: 14px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--bd);
+}
+
+/* ── 분석 진행 업그레이드 ── */
+.prog-title { font-size: 14px; font-weight: 700; color: var(--c1); margin-bottom: 14px; }
+.prog-steps {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
+}
+.prog-step-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--t3); padding: 6px 8px;
+  border-radius: 6px; background: rgba(255,255,255,.02);
+  transition: all .3s;
+}
+.prog-step-item.active {
+  color: var(--c1); background: rgba(0,212,255,.08);
+}
+.prog-step-item.done {
+  color: var(--grn);
+}
+.prog-step-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--bd2); flex-shrink: 0; transition: background .3s;
+}
+.prog-step-item.active .prog-step-dot { background: var(--c1); animation: pulse 1s infinite; }
+.prog-step-item.done .prog-step-dot { background: var(--grn); }
+
+/* ── 판정 배너 업그레이드 ── */
+.verdict.confirmed-ai {
+  background: linear-gradient(135deg, rgba(255,51,102,.15), rgba(255,51,102,.05));
+  border-color: rgba(255,51,102,.5);
+}
+.verdict.likely-ai {
+  background: linear-gradient(135deg, rgba(255,153,0,.12), rgba(255,153,0,.04));
+  border-color: rgba(255,153,0,.4);
+}
+.verdict.uncertain {
+  background: linear-gradient(135deg, rgba(255,213,0,.1), rgba(255,213,0,.04));
+  border-color: rgba(255,213,0,.35);
+}
+.verdict.likely-real {
+  background: linear-gradient(135deg, rgba(0,255,136,.1), rgba(0,255,136,.04));
+  border-color: rgba(0,255,136,.35);
+}
+
+/* ── 메타데이터 AI 경고 뱃지 ── */
+.meta-ai-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255,51,102,.15); color: var(--red);
+  border: 1px solid rgba(255,51,102,.4); border-radius: 6px;
+  font-size: 11px; font-weight: 700; padding: 3px 8px;
+  margin-left: 6px;
+}
+
+/* ── 분석 단계 신호 배지 ── */
+.step-signal {
+  display: inline-block; border-radius: 4px;
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  margin-left: 6px;
+}
+.step-signal.HIGH { background: rgba(255,51,102,.2); color: #ff6b8a; }
+.step-signal.MEDIUM { background: rgba(255,153,0,.2); color: #ffaa40; }
+.step-signal.LOW { background: rgba(0,255,136,.2); color: #4dffaa; }
+
+/* ── 사이드바 탭 확장 ── */
+.res-tabs { flex-wrap: wrap; gap: 4px; }
+.rt {
+  white-space: nowrap;
+  font-size: 11px !important;
+  padding: 7px 10px !important;
+}
+
+/* ── Responsive GAN grid ── */
+@media (max-width:768px) {
+  .gan-learn-grid { grid-template-columns: repeat(2,1fr); }
+  .gsp-grid { grid-template-columns: repeat(3,1fr); }
+}
+@media (max-width:480px) {
+  .gan-learn-grid { grid-template-columns: repeat(2,1fr); }
+}

@@ -78,7 +78,7 @@
     <div class="hero-inner">
       <div class="hero-badge">
         <span class="hb-dot"></span>
-        실시간 AI 허위이미지 탐지 · 분쟁지역 팩트체크 특화
+        실시간 AI 허위이미지 탐지 v5 · GAN 판별자 · 10단계 분석
       </div>
 
       <h1 class="hero-h1">
@@ -106,12 +106,12 @@
 
       <div class="hero-counters">
         <div class="hc">
-          <span class="hc-n" data-target="7">0</span>
+          <span class="hc-n" data-target="10">0</span>
           <span class="hc-l">단계 탐지 알고리즘</span>
         </div>
         <div class="hc-div"></div>
         <div class="hc">
-          <span class="hc-n" data-target="12">0</span>
+          <span class="hc-n" data-target="20">0</span>
           <span class="hc-l">팩트체크 소스</span>
         </div>
         <div class="hc-div"></div>
@@ -214,14 +214,14 @@
         <div class="ls-div"></div>
         <div class="ls-item">
           <div>
-            <div class="ls-val" style="color:var(--c2)">12</div>
+            <div class="ls-val" style="color:var(--c2)" id="ls-fc-sources">20+</div>
             <div class="ls-label">팩트체크 소스</div>
           </div>
         </div>
         <div class="ls-div"></div>
         <div class="ls-item">
           <div>
-            <div class="ls-val" style="color:var(--org)">7</div>
+            <div class="ls-val" style="color:var(--org)">10</div>
             <div class="ls-label">분석 단계</div>
           </div>
         </div>
@@ -434,7 +434,7 @@
       <div class="panel">
         <div class="panel-hd">
           <h2>이미지 업로드</h2>
-          <span class="pbadge">탐지 엔진 v4</span>
+          <span class="pbadge">탐지 엔진 v5 · GAN</span>
         </div>
 
         <!-- Drop zone -->
@@ -489,18 +489,44 @@
           </span>
         </button>
 
-        <!-- 7-step summary -->
+        <!-- 10-step summary v5 -->
         <div class="algo-mini">
-          <div class="am-title">🔬 7단계 탐지 알고리즘</div>
+          <div class="am-title">🔬 10단계 탐지 알고리즘 v5</div>
           <div class="am-steps">
-            <div class="ams">①<span>Metadata (EXIF)</span></div>
-            <div class="ams">②<span>Luminance BT.709</span></div>
-            <div class="ams">③<span>Sobel Gradient</span></div>
-            <div class="ams">④<span>Vector M∈ℝ^(N×2)</span></div>
-            <div class="ams">⑤<span>Covariance C=(1/N)MᵀM</span></div>
-            <div class="ams">⑥<span>PCA Eigenvalue</span></div>
-            <div class="ams" style="grid-column:1/-1">⑦<span>Composite AI Probability P(AI) → Verdict</span></div>
+            <div class="ams">①<span>EXIF + AI 메타</span></div>
+            <div class="ams">②<span>Luminance + 히스토</span></div>
+            <div class="ams">③<span>Sobel + 공분산</span></div>
+            <div class="ams">④<span>ELA 압축 분석</span></div>
+            <div class="ams">⑤<span>DCT 스펙트럼</span></div>
+            <div class="ams">⑥<span>PRNU 센서 노이즈</span></div>
+            <div class="ams">⑦<span>GAN 아티팩트</span></div>
+            <div class="ams">⑧<span>확산 모델 특성</span></div>
+            <div class="ams">⑨<span>채도 + 블록 주파수</span></div>
+            <div class="ams" style="grid-column:1/-1">⑩<span>GAN 판별자 + 복합 최종 판정</span></div>
           </div>
+        </div>
+
+        <!-- GAN Learning Status -->
+        <div class="gan-status-panel" id="gan-panel">
+          <div class="gsp-title">
+            <span class="gsp-dot"></span>
+            🧠 GAN 판별자 학습 상태
+          </div>
+          <div class="gsp-grid">
+            <div class="gsp-item">
+              <div class="gsp-val" id="gsp-rounds">0</div>
+              <div class="gsp-lbl">학습 횟수</div>
+            </div>
+            <div class="gsp-item">
+              <div class="gsp-val" id="gsp-acc">—</div>
+              <div class="gsp-lbl">정확도</div>
+            </div>
+            <div class="gsp-item">
+              <div class="gsp-val" id="gsp-lr">0.050</div>
+              <div class="gsp-lbl">학습률(LR)</div>
+            </div>
+          </div>
+          <div class="gsp-weights" id="gsp-weights"></div>
         </div>
       </div>
     </div>
@@ -556,23 +582,98 @@
 
         <!-- Tabs -->
         <div class="res-tabs">
-          <button class="rt active" data-tab="steps">📊 7단계 분석</button>
-          <button class="rt" data-tab="metrics">🔢 수치 지표</button>
-          <button class="rt" data-tab="webcheck">🌐 웹 검증</button>
+          <button class="rt active" data-tab="steps">📊 10단계 분석</button>
+          <button class="rt" data-tab="metrics">🔢 물리 지표</button>
+          <button class="rt" data-tab="gan">🧠 GAN 학습</button>
+          <button class="rt" data-tab="external">🔗 외부 검증</button>
+          <button class="rt" data-tab="webcheck">🌐 팩트체크</button>
           <button class="rt" data-tab="chat">💬 AI 채팅</button>
           <button class="rt" data-tab="report">📄 보고서</button>
         </div>
 
-        <!-- TAB: 7-STEP -->
+        <!-- TAB: 10-STEP -->
         <div class="tab-pane active" id="tab-steps">
           <div class="step-list" id="step-list"></div>
           <div class="reasons-box" id="reasons-box"></div>
         </div>
 
-        <!-- TAB: METRICS -->
+        <!-- TAB: METRICS (물리 지표) -->
         <div class="tab-pane" id="tab-metrics">
+          <div class="metrics-header">물리적 특성 기반 12개 지표</div>
           <div class="metrics-g" id="metrics-g"></div>
           <div class="matrix-vis" id="matrix-vis"></div>
+          <!-- 레이더 차트 -->
+          <div class="radar-section">
+            <div class="radar-title">AI 신호 레이더 차트</div>
+            <canvas id="radar-chart" width="300" height="300"></canvas>
+          </div>
+        </div>
+
+        <!-- TAB: GAN LEARNING -->
+        <div class="tab-pane" id="tab-gan">
+          <div class="gan-tab-content">
+            <div class="gan-header">
+              <div class="gh-icon">🧠</div>
+              <div>
+                <div class="gh-title">GAN 적대적 학습 판별자</div>
+                <div class="gh-sub">Goodfellow et al. (2014) NeurIPS 원리 적용 — 이미지 분석마다 실시간 학습</div>
+              </div>
+            </div>
+            <!-- 학습 진행 -->
+            <div class="gan-learn-grid">
+              <div class="glg-card">
+                <div class="glg-val" id="gan-rounds">0</div>
+                <div class="glg-lbl">학습 완료 횟수</div>
+              </div>
+              <div class="glg-card">
+                <div class="glg-val" id="gan-acc">—</div>
+                <div class="glg-lbl">판별자 정확도</div>
+              </div>
+              <div class="glg-card">
+                <div class="glg-val" id="gan-lr-val">0.050</div>
+                <div class="glg-lbl">현재 학습률(LR)</div>
+              </div>
+              <div class="glg-card">
+                <div class="glg-val" id="gan-disc-prob">—</div>
+                <div class="glg-lbl">판별자 AI 확률</div>
+              </div>
+            </div>
+
+            <!-- 가중치 시각화 -->
+            <div class="gan-weights-title">9개 특성 가중치 (경사하강법 학습 결과)</div>
+            <div class="gan-weights-vis" id="gan-weights-vis"></div>
+
+            <!-- 학습 과정 설명 -->
+            <div class="gan-explain">
+              <div class="ge-step">
+                <div class="ge-num">1</div>
+                <div class="ge-text"><strong>특성 추출</strong>: Trace, 이방성, ELA, DCT, PRNU, GAN아티팩트, 확산, 메타데이터 → 9차원 벡터</div>
+              </div>
+              <div class="ge-step">
+                <div class="ge-num">2</div>
+                <div class="ge-text"><strong>판별자 예측</strong>: P(AI) = σ(Σ wᵢ·xᵢ - bias) — 가중합 + 시그모이드</div>
+              </div>
+              <div class="ge-step">
+                <div class="ge-num">3</div>
+                <div class="ge-text"><strong>역전파</strong>: error = target - P(AI), Δwᵢ = η·error·xᵢ — 경사하강법</div>
+              </div>
+              <div class="ge-step">
+                <div class="ge-num">4</div>
+                <div class="ge-text"><strong>적응 학습률</strong>: η → η×0.95 매 10회 — 수렴 안정화</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: EXTERNAL VERIFICATION -->
+        <div class="tab-pane" id="tab-external">
+          <div class="ext-header">
+            <div class="ext-title">🔗 외부 AI 검증 사이트 크로스체크</div>
+            <div class="ext-sub">내부 분석 결과를 아래 전문 사이트에서 교차 검증하세요</div>
+          </div>
+          <div class="ext-results" id="ext-results">
+            <div class="ext-placeholder">분석 완료 후 외부 검증 사이트 목록이 표시됩니다</div>
+          </div>
         </div>
 
         <!-- TAB: WEB VERIFY -->
@@ -589,10 +690,11 @@
             </div>
             <div class="wc-tags" id="wc-tags">
               <span class="wt" data-q="Ukraine Russia deepfake AI image war">🇺🇦 우크라이나·러시아</span>
-              <span class="wt" data-q="Iran Israel fake image AI generated Middle East">🇮🇱 이란·이스라엘</span>
-              <span class="wt" data-q="deepfake crime Korea 딥페이크 한국">🕵️ 딥페이크 범죄</span>
-              <span class="wt" data-q="AI generated image detection diffusion GAN fake">🤖 AI 생성</span>
-              <span class="wt" data-q="SNS viral fake image disinformation">📱 SNS 허위정보</span>
+              <span class="wt" data-q="Gaza Israel Hamas fake image AI generated">🇵🇸 가자·이스라엘</span>
+              <span class="wt" data-q="deepfake crime Korea 딥페이크 한국 성범죄">🕵️ 딥페이크 범죄</span>
+              <span class="wt" data-q="AI generated image detection diffusion GAN Stable Diffusion Midjourney">🤖 AI 생성 탐지</span>
+              <span class="wt" data-q="Myanmar Burma military propaganda fake image">🇲🇲 미얀마 군부</span>
+              <span class="wt" data-q="Sudan war fake image RSF disinformation">🌍 수단 내전</span>
             </div>
           </div>
           <div class="wc-results" id="wc-results">
@@ -607,18 +709,19 @@
               <div class="chat-msg bot">
                 <div class="cm-avatar">🔍</div>
                 <div class="cm-bubble">
-                  안녕하세요! <strong>Fact Maze AI</strong> 분석 어시스턴트입니다.<br/>
-                  분석 결과 해석, 알고리즘 원리, 팩트체크 방법에 대해 질문해보세요.<br/>
+                  안녕하세요! <strong>Fact Maze v5 AI</strong> 어시스턴트입니다.<br/>
+                  분석 결과 해석, GAN 판별자 원리, ELA·PRNU·DCT 설명, 팩트체크 방법에 대해 질문해보세요.<br/>
                   <em style="color:var(--c2);font-size:12px;display:block;margin-top:6px">아래 빠른 질문을 클릭하거나 직접 입력하세요.</em>
                 </div>
               </div>
             </div>
             <div class="chat-quick">
               <button class="cq-btn" data-q="점수 해석이 궁금해요">📊 점수 해석</button>
-              <button class="cq-btn" data-q="Trace(C) 값이 무슨 의미인가요">📐 Trace 의미</button>
-              <button class="cq-btn" data-q="딥페이크는 어떻게 만들어지나요">🤖 딥페이크 원리</button>
+              <button class="cq-btn" data-q="ELA가 무엇인가요">🔬 ELA 원리</button>
+              <button class="cq-btn" data-q="GAN 판별자가 어떻게 학습하나요">🧠 GAN 학습</button>
+              <button class="cq-btn" data-q="PRNU 센서 노이즈가 뭔가요">📡 PRNU 설명</button>
               <button class="cq-btn" data-q="우크라이나 허위 이미지 어떻게 구분하나요">🌍 전쟁 허위정보</button>
-              <button class="cq-btn" data-q="이방성이 무엇인가요">📈 이방성 개념</button>
+              <button class="cq-btn" data-q="딥페이크는 어떻게 만들어지나요">🤖 딥페이크 원리</button>
             </div>
             <div class="chat-in">
               <input type="text" id="chat-input" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter') window._app.sendChat()"/>
