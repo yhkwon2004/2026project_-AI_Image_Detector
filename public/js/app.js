@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   FACT MAZE v5 — Application Logic
-   물리적 특성 + GAN 판별자 + 외부검증 + 전쟁DB 팩트체크
+   FACT MAZE v6 — Application Logic
+   물리적 특성 + GAN 판별자 + 외부검증 + 전쟁DB + 빅데이터 학습
    ═══════════════════════════════════════════════════════════════ */
 
 window._app = (() => {
@@ -17,7 +17,7 @@ window._app = (() => {
     wsRetries: 0
   };
 
-  const PAGE_ORDER = ['home', 'analyze', 'algorithm', 'about'];
+  const PAGE_ORDER = ['home', 'analyze', 'learning', 'algorithm', 'about'];
 
   // 분석 단계 목록 (10단계 v5)
   const ANALYSIS_STEPS = [
@@ -52,6 +52,7 @@ window._app = (() => {
     fetchGANStatus();
     setInterval(fetchServerStatus, 10000);
     setInterval(fetchGANStatus, 15000);
+    setInterval(pollMLStatus, 20000);
 
     const homePage = document.getElementById('page-home');
     if (homePage) { homePage.style.display = 'block'; homePage.classList.add('active'); }
@@ -107,6 +108,7 @@ window._app = (() => {
     });
     window.scrollTo(0, 0);
     if (pageName === 'algorithm') setTimeout(initAlgorithmCanvases, 200);
+    if (pageName === 'learning')  setTimeout(initLearningPage, 200);
   }
 
   // ══════════════════════════════════════════════
@@ -1136,8 +1138,458 @@ window._app = (() => {
   }
 
   // ══════════════════════════════════════════════
+  //  LEARNING PAGE
+  // ══════════════════════════════════════════════
+
+  const lp = {
+    page:        1,
+    perPage:     15,
+    filter:      'all',
+    labelFile:   null,
+    initialized: false,
+    logEntries:  []
+  };
+
+  function initLearningPage() {
+    if (!document.getElementById('page-learning')) return;
+    if (!lp.initialized) {
+      setupLabelDropZone();
+      setupLabelButtons();
+      setupPipelineControls();
+      setupTrainButton();
+      setupDatasetBrowser();
+      setupLogClear();
+      lp.initialized = true;
+    }
+    refreshMLStatus();
+    refreshDataset();
+  }
+
+  // ── ML Status ───────────────────────────────
+  function refreshMLStatus() {
+    fetch('/api/ml/status')
+      .then(r => r.json())
+      .then(data => {
+        const st  = data.learning_state || {};
+        const ds  = data;
+        el('ml-status-dot').textContent    = data.ml_engine_ready !== false ? '🟢' : '🔴';
+        el('ml-labeled-cnt').textContent   = st.labeled_samples || 0;
+        el('ml-train-rounds').textContent  = st.training_rounds  || 0;
+        const acc = st.accuracy || 0;
+        el('ml-accuracy').textContent      = acc > 0 ? acc + '%' : '—';
+        // dataset stats
+        const fetched = data.fetch_stats || {};
+        el('ml-real-cnt').textContent = fetched.real_fetched || 0;
+        el('ml-ai-cnt').textContent   = fetched.ai_fetched   || 0;
+        // pipeline log
+        const logLines = (st.pipeline_log || []).slice(-10).reverse();
+        if (logLines.length) {
+          logLines.forEach(e => addLearningLog(e.event, JSON.stringify(e.detail || ''), 'info'));
+        }
+      })
+      .catch(() => {
+        el('ml-status-dot').textContent = '🔴';
+      });
+  }
+
+  function pollMLStatus() {
+    if (state.currentPage === 'learning') refreshMLStatus();
+  }
+
+  // ── Pipeline Controls ────────────────────────
+  function setupPipelineControls() {
+    const realSlider = document.getElementById('pipe-real');
+    const aiSlider   = document.getElementById('pipe-ai');
+    const realVal    = document.getElementById('pipe-real-val');
+    const aiVal      = document.getElementById('pipe-ai-val');
+
+    if (realSlider) realSlider.addEventListener('input', () => { realVal.textContent = realSlider.value; });
+    if (aiSlider)   aiSlider.addEventListener('input',   () => { aiVal.textContent   = aiSlider.value; });
+
+    const btn = document.getElementById('btn-run-pipeline');
+    if (btn) btn.addEventListener('click', runPipeline);
+
+    const refreshBtn = document.getElementById('btn-ml-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => {
+      refreshMLStatus();
+      refreshDataset();
+    });
+  }
+
+  function runPipeline() {
+    const btn       = document.getElementById('btn-run-pipeline');
+    const realCount = parseInt(document.getElementById('pipe-real')?.value || '10');
+    const aiCount   = parseInt(document.getElementById('pipe-ai')?.value   || '10');
+    const autoTrain = document.getElementById('pipe-autotrain')?.checked    ?? true;
+
+    if (btn) btn.disabled = true;
+    addPipelineLog(`🚀 파이프라인 시작: 실제 ${realCount}개 + AI ${aiCount}개 수집 중...`, 'info');
+    addLearningLog('pipeline', `파이프라인 시작 (real=${realCount}, ai=${aiCount}, train=${autoTrain})`, 'pipeline');
+
+    fetch('/api/ml/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ real_count: realCount, ai_count: aiCount, auto_train: autoTrain })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        addPipelineLog(`❌ 오류: ${data.error}`, 'error');
+        addLearningLog('pipeline', `오류: ${data.error}`, 'error');
+      } else {
+        addPipelineLog(`✅ ${data.message}`, 'success');
+        addLearningLog('pipeline', data.message, 'pipeline');
+        // Poll for completion
+        pollPipelineStatus(btn);
+      }
+    })
+    .catch(e => {
+      addPipelineLog(`❌ 요청 실패: ${e.message}`, 'error');
+      if (btn) btn.disabled = false;
+    });
+  }
+
+  function pollPipelineStatus(btn) {
+    let polls = 0;
+    const interval = setInterval(() => {
+      polls++;
+      fetch('/api/ml/status')
+        .then(r => r.json())
+        .then(data => {
+          const st = data.learning_state || {};
+          if (!st.is_training || polls > 30) {
+            clearInterval(interval);
+            if (btn) btn.disabled = false;
+            const log = (st.pipeline_log || []).slice(-1)[0];
+            if (log && log.event === 'pipeline_complete') {
+              const d = log.detail || {};
+              addPipelineLog(`✅ 완료: 실제 ${d.real_count||0}개 + AI ${d.ai_count||0}개 수집, ${d.features_extracted||0}개 특성 추출`, 'success');
+              if (d.training_result) {
+                addPipelineLog(`🎯 학습 완료: 배치 정확도 ${d.training_result.batch_accuracy}%`, 'success');
+              }
+            } else {
+              addPipelineLog(`⚠️ 파이프라인 상태 확인 완료`, 'warn');
+            }
+            refreshMLStatus();
+            refreshDataset();
+          } else {
+            addPipelineLog(`⏳ 처리 중... (${polls * 2}s)`, 'info');
+          }
+        })
+        .catch(() => clearInterval(interval));
+    }, 2000);
+  }
+
+  function addPipelineLog(msg, type) {
+    const log  = document.getElementById('pipeline-log');
+    if (!log) return;
+    const empty = log.querySelector('.log-empty');
+    if (empty) empty.remove();
+    const line = document.createElement('div');
+    line.className = `log-line ${type}`;
+    line.textContent = `[${new Date().toLocaleTimeString('ko-KR')}] ${msg}`;
+    log.insertBefore(line, log.firstChild);
+    while (log.children.length > 50) log.removeChild(log.lastChild);
+  }
+
+  // ── Label Drop Zone ──────────────────────────
+  function setupLabelDropZone() {
+    const zone  = document.getElementById('label-drop-zone');
+    const input = document.getElementById('label-file-input');
+    if (!zone || !input) return;
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) setLabelFile(file);
+    });
+    input.addEventListener('change', () => {
+      if (input.files[0]) setLabelFile(input.files[0]);
+    });
+  }
+
+  function setLabelFile(file) {
+    lp.labelFile = file;
+    const preview = document.getElementById('label-preview-wrap');
+    const img     = document.getElementById('label-preview-img');
+    const info    = document.getElementById('label-preview-info');
+    if (preview) preview.style.display = 'flex';
+    if (img)  img.src = URL.createObjectURL(file);
+    if (info) info.innerHTML = `<strong>${file.name}</strong>${(file.size/1024).toFixed(1)} KB · ${file.type}`;
+    el('btn-label-real').disabled = false;
+    el('btn-label-ai').disabled   = false;
+    el('label-result').textContent = '';
+    el('label-result').className   = 'label-result';
+  }
+
+  // ── Label Buttons ────────────────────────────
+  function setupLabelButtons() {
+    const btnReal = document.getElementById('btn-label-real');
+    const btnAI   = document.getElementById('btn-label-ai');
+    if (btnReal) btnReal.addEventListener('click', () => submitLabel('real'));
+    if (btnAI)   btnAI.addEventListener('click',   () => submitLabel('ai_generated'));
+  }
+
+  function submitLabel(label) {
+    if (!lp.labelFile) return;
+    const resultDiv = document.getElementById('label-result');
+    const btnReal   = document.getElementById('btn-label-real');
+    const btnAI     = document.getElementById('btn-label-ai');
+
+    btnReal.disabled = true;
+    btnAI.disabled   = true;
+    resultDiv.className   = 'label-result';
+    resultDiv.textContent = '⏳ 라벨링 & 특성 추출 중...';
+
+    const fd = new FormData();
+    fd.append('image', lp.labelFile);
+    fd.append('label', label);
+    fd.append('source', 'manual_upload');
+
+    fetch('/api/ml/label_image', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          resultDiv.className   = 'label-result error';
+          resultDiv.textContent = `❌ 오류: ${data.error}`;
+        } else {
+          resultDiv.className   = 'label-result success';
+          const trainInfo = data.training_result
+            ? ` | 학습: ${data.training_result.batch_accuracy}% 정확도`
+            : '';
+          resultDiv.textContent = `✅ 라벨링 완료 (${label === 'real' ? '실제' : 'AI 생성'}) · 총 ${data.total_labeled}개${trainInfo}`;
+          addLearningLog('label', `${label} 라벨 추가 → 총 ${data.total_labeled}개`, 'label');
+          if (data.training_result) {
+            addLearningLog('train', `자동 학습: ${data.training_result.batch_accuracy}% 정확도`, 'train');
+          }
+          lp.labelFile = null;
+          // Reset preview
+          const preview = document.getElementById('label-preview-wrap');
+          if (preview) preview.style.display = 'none';
+          const inp = document.getElementById('label-file-input');
+          if (inp) inp.value = '';
+          refreshMLStatus();
+          refreshDataset();
+        }
+        btnReal.disabled = false;
+        btnAI.disabled   = false;
+      })
+      .catch(e => {
+        resultDiv.className   = 'label-result error';
+        resultDiv.textContent = `❌ 요청 실패: ${e.message}`;
+        btnReal.disabled = false;
+        btnAI.disabled   = false;
+      });
+  }
+
+  // ── Train Button ─────────────────────────────
+  function setupTrainButton() {
+    const btn = document.getElementById('btn-train-all');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      const progress = document.getElementById('train-progress');
+      const fill     = document.getElementById('tp-fill');
+      const msg      = document.getElementById('tp-msg');
+      const result   = document.getElementById('train-result');
+
+      if (progress) progress.style.display = 'block';
+      if (fill)     fill.style.width = '30%';
+      if (msg)      msg.textContent  = '학습 요청 중...';
+      result.className   = 'train-result';
+      result.textContent = '';
+
+      addLearningLog('train', '전체 데이터 재학습 시작', 'train');
+
+      fetch('/api/ml/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'all' })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (fill) fill.style.width = '70%';
+        if (msg)  msg.textContent  = '학습 진행 중...';
+        if (data.error) {
+          result.className   = 'train-result error';
+          result.textContent = `❌ ${data.error}`;
+          if (progress) progress.style.display = 'none';
+          btn.disabled = false;
+          return;
+        }
+        // Poll for completion
+        setTimeout(() => {
+          fetch('/api/ml/status')
+            .then(r => r.json())
+            .then(status => {
+              const st = status.learning_state || {};
+              if (fill) fill.style.width = '100%';
+              if (progress) setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 1000);
+              result.className = 'train-result success';
+              result.textContent = `✅ 학습 완료 | 라운드: ${st.training_rounds} | 정확도: ${st.accuracy || '—'}%`;
+              addLearningLog('train', `학습 완료: 정확도 ${st.accuracy}%`, 'train');
+              refreshMLStatus();
+              btn.disabled = false;
+            })
+            .catch(() => { btn.disabled = false; if (progress) progress.style.display = 'none'; });
+        }, 3000);
+      })
+      .catch(e => {
+        result.className   = 'train-result error';
+        result.textContent = `❌ 요청 실패: ${e.message}`;
+        if (progress) progress.style.display = 'none';
+        btn.disabled = false;
+      });
+    });
+  }
+
+  // ── Dataset Browser ──────────────────────────
+  function setupDatasetBrowser() {
+    document.querySelectorAll('.db-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.db-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        lp.filter = btn.dataset.filter === 'manual' ? null : (btn.dataset.filter === 'all' ? 'all' : btn.dataset.filter);
+        lp._manual = btn.dataset.filter === 'manual';
+        lp.page = 1;
+        refreshDataset();
+      });
+    });
+
+    document.getElementById('db-prev')?.addEventListener('click', () => {
+      if (lp.page > 1) { lp.page--; refreshDataset(); }
+    });
+    document.getElementById('db-next')?.addEventListener('click', () => {
+      lp.page++; refreshDataset();
+    });
+  }
+
+  function refreshDataset() {
+    const params = new URLSearchParams({ page: lp.page, per_page: lp.perPage });
+    if (lp.filter && lp.filter !== 'all') params.append('label', lp.filter);
+
+    fetch(`/api/ml/labeled?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        const tbody    = document.getElementById('dataset-tbody');
+        const pageInfo = document.getElementById('db-page-info');
+        const prevBtn  = document.getElementById('db-prev');
+        const nextBtn  = document.getElementById('db-next');
+
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        let items = data.items || [];
+        if (lp._manual) items = items.filter(i => !i.auto_labeled);
+
+        if (items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="table-empty">데이터가 없습니다</td></tr>';
+        } else {
+          items.forEach(item => {
+            const tr = document.createElement('tr');
+            const isManual  = !item.auto_labeled;
+            const timeStr   = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR') : '—';
+            const labelBadge = `<span class="label-badge ${item.label}">${item.label === 'real' ? '실제' : 'AI'}</span>`;
+            const typeBadge  = `<span class="type-badge ${isManual?'manual':''}">${isManual ? '수동' : '자동'}</span>`;
+            tr.innerHTML = `
+              <td style="font-family:monospace;font-size:.72rem">${item.id}</td>
+              <td>${labelBadge}</td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.source || '—'}</td>
+              <td>${typeBadge}</td>
+              <td style="white-space:nowrap">${timeStr}</td>
+              <td><button class="btn-delete-row" data-id="${item.id}">🗑</button></td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          // Delete handlers
+          tbody.querySelectorAll('.btn-delete-row').forEach(btn => {
+            btn.addEventListener('click', () => deleteDatasetItem(btn.dataset.id));
+          });
+        }
+
+        const totalPages = Math.max(1, Math.ceil((data.total || 0) / lp.perPage));
+        if (pageInfo) pageInfo.textContent = `${lp.page} / ${totalPages}  (${data.real_count||0}실제 / ${data.ai_count||0}AI)`;
+        if (prevBtn) prevBtn.disabled = lp.page <= 1;
+        if (nextBtn) nextBtn.disabled = lp.page >= totalPages;
+      })
+      .catch(() => {
+        const tbody = document.getElementById('dataset-tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="table-empty">ML 엔진 연결 중...</td></tr>';
+      });
+  }
+
+  function deleteDatasetItem(id) {
+    if (!confirm(`샘플 ${id}를 삭제하시겠습니까?`)) return;
+    fetch(`/api/ml/labeled/${id}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        addLearningLog('label', `샘플 ${id} 삭제 (남은 수: ${data.remaining})`, 'label');
+        refreshDataset();
+        refreshMLStatus();
+      })
+      .catch(console.error);
+  }
+
+  // ── Learning Log ─────────────────────────────
+  function addLearningLog(type, msg, cssType) {
+    const log = document.getElementById('learning-log');
+    if (!log) return;
+    const empty = log.querySelector('.log-empty');
+    if (empty) empty.remove();
+    const entry = document.createElement('div');
+    entry.className = 'll-entry';
+    const time = new Date().toLocaleTimeString('ko-KR');
+    entry.innerHTML = `
+      <span class="ll-time">${time}</span>
+      <span class="ll-type ${cssType}">${type.toUpperCase()}</span>
+      <span class="ll-msg">${msg}</span>
+    `;
+    log.insertBefore(entry, log.firstChild);
+    while (log.children.length > 100) log.removeChild(log.lastChild);
+    lp.logEntries.push({ time, type, msg });
+  }
+
+  function setupLogClear() {
+    const btn = document.getElementById('btn-log-clear');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const log = document.getElementById('learning-log');
+      if (log) { log.innerHTML = '<div class="log-empty">로그가 지워졌습니다.</div>'; }
+      const plog = document.getElementById('pipeline-log');
+      if (plog) { plog.innerHTML = '<div class="log-empty">파이프라인을 실행하면 로그가 표시됩니다.</div>'; }
+    });
+  }
+
+  // ── WebSocket ML events ──────────────────────
+  // (Hook into existing WS message handler)
+  const _origWSMsg = window._wsMessageHandler;
+  window._wsMessageHandler = function(data) {
+    if (data.type === 'pipeline_started') {
+      addLearningLog('pipeline', `파이프라인 시작: real=${data.real_count}, ai=${data.ai_count}`, 'pipeline');
+    } else if (data.type === 'pipeline_complete') {
+      addLearningLog('pipeline', '파이프라인 완료', 'pipeline');
+      refreshMLStatus(); refreshDataset();
+    } else if (data.type === 'label_added') {
+      addLearningLog('label', `라벨 추가: ${data.label}`, 'label');
+    } else if (data.type === 'training_started') {
+      addLearningLog('train', '학습 시작', 'train');
+    } else if (data.type === 'ml_engine_ready') {
+      addLearningLog('info', 'ML 엔진 온라인', 'info');
+      refreshMLStatus();
+    }
+    if (_origWSMsg) _origWSMsg(data);
+  };
+
+  // Helper: safe el()
+  function el(id) { return document.getElementById(id) || { textContent: '', className: '', disabled: false }; }
+
+  // ══════════════════════════════════════════════
   //  PUBLIC API
   // ══════════════════════════════════════════════
-  return { navigateTo, sendChat, exportReport, copyLink, runWebVerify, switchTab };
+  return { navigateTo, sendChat, exportReport, copyLink, runWebVerify, switchTab, initLearningPage };
 
 })();

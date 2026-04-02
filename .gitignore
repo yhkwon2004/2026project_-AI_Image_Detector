@@ -1,9 +1,8 @@
 node_modules/
-uploads/*.jpg
-uploads/*.png
-uploads/*.webp
-uploads/*.gif
-uploads/*.json
-test_image.jpg
+uploads/
+__pycache__/
+*.pyc
+ml_data/
+ml_models/
 *.log
-.env
+*.pid

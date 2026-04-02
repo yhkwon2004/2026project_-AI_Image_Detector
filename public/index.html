@@ -34,6 +34,7 @@
     <nav class="hdr-nav">
       <button class="nv active" data-nav="home">홈</button>
       <button class="nv" data-nav="analyze">이미지 분석</button>
+      <button class="nv" data-nav="learning">AI 학습</button>
       <button class="nv" data-nav="algorithm">알고리즘</button>
       <button class="nv" data-nav="about">서비스 소개</button>
     </nav>
@@ -78,7 +79,7 @@
     <div class="hero-inner">
       <div class="hero-badge">
         <span class="hb-dot"></span>
-        실시간 AI 허위이미지 탐지 v5 · GAN 판별자 · 10단계 분석
+        실시간 AI 허위이미지 탐지 v6 · GAN 판별자 · 빅데이터 학습
       </div>
 
       <h1 class="hero-h1">
@@ -1261,6 +1262,222 @@
 
   </div>
 </div><!-- /page-about -->
+
+<!-- ══════════════════════════════════════════════
+     PAGE: LEARNING (빅데이터 파이프라인 + 실시간 학습)
+══════════════════════════════════════════════ -->
+<div class="page" id="page-learning">
+  <div class="pg-header">
+    <div class="pg-title-wrap">
+      <div class="pg-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="pg-title">AI 온라인 학습 센터</h2>
+        <p class="pg-desc">빅데이터 파이프라인 · 실시간 라벨링 · 증분 학습 (Incremental Learning)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="learn-grid">
+    <!-- ─── ML Engine Status ─────────────────── -->
+    <div class="learn-card full-width">
+      <div class="lc-head">
+        <div class="lc-icon brain">🧠</div>
+        <div>
+          <h3>ML 엔진 상태</h3>
+          <p>SGDClassifier 온라인 학습 엔진 (Python scikit-learn)</p>
+        </div>
+        <button class="btn-refresh" id="btn-ml-refresh">새로고침</button>
+      </div>
+      <div class="ml-status-grid" id="ml-status-grid">
+        <div class="mss-item">
+          <div class="mss-val" id="ml-status-dot">⏳</div>
+          <div class="mss-lbl">엔진 상태</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-labeled-cnt">—</div>
+          <div class="mss-lbl">라벨링 샘플</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-train-rounds">—</div>
+          <div class="mss-lbl">학습 라운드</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-accuracy">—</div>
+          <div class="mss-lbl">학습 정확도</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-real-cnt">—</div>
+          <div class="mss-lbl">실제 이미지</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-ai-cnt">—</div>
+          <div class="mss-lbl">AI 이미지</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Big Data Pipeline ───────────────── -->
+    <div class="learn-card">
+      <div class="lc-head">
+        <div class="lc-icon pipeline">📡</div>
+        <div>
+          <h3>빅데이터 파이프라인</h3>
+          <p>공개 데이터셋 자동 수집 → 특성 추출 → 라벨링 → 학습</p>
+        </div>
+      </div>
+      <div class="pipeline-settings">
+        <div class="ps-row">
+          <label>실제 이미지 수집 수</label>
+          <input type="range" id="pipe-real" min="5" max="50" value="10" step="5"/>
+          <span id="pipe-real-val">10</span>
+        </div>
+        <div class="ps-row">
+          <label>AI 이미지 수집 수</label>
+          <input type="range" id="pipe-ai" min="5" max="50" value="10" step="5"/>
+          <span id="pipe-ai-val">10</span>
+        </div>
+        <div class="ps-check">
+          <input type="checkbox" id="pipe-autotrain" checked/>
+          <label for="pipe-autotrain">수집 후 자동 학습</label>
+        </div>
+      </div>
+      <button class="btn-pipeline" id="btn-run-pipeline">
+        <span class="btn-icon">🚀</span>
+        파이프라인 실행
+      </button>
+      <div class="pipeline-log" id="pipeline-log">
+        <div class="log-empty">파이프라인을 실행하면 로그가 표시됩니다.</div>
+      </div>
+    </div>
+
+    <!-- ─── Manual Labeling ─────────────────── -->
+    <div class="learn-card">
+      <div class="lc-head">
+        <div class="lc-icon label">🏷️</div>
+        <div>
+          <h3>수동 라벨링</h3>
+          <p>이미지를 업로드하고 직접 라벨을 지정하여 모델 학습</p>
+        </div>
+      </div>
+      <div class="label-upload-zone" id="label-drop-zone">
+        <div class="luz-inner">
+          <div class="luz-icon">📂</div>
+          <p>이미지를 드래그하거나 클릭하세요</p>
+          <span>JPG, PNG, WebP · 최대 10MB</span>
+        </div>
+        <input type="file" id="label-file-input" accept="image/*" style="display:none"/>
+      </div>
+      <div class="label-preview-wrap" id="label-preview-wrap" style="display:none">
+        <img id="label-preview-img" src="" alt="Preview"/>
+        <div class="label-preview-info" id="label-preview-info"></div>
+      </div>
+      <div class="label-buttons">
+        <button class="btn-label real" id="btn-label-real" disabled>
+          ✅ 실제 사진 (Real)
+        </button>
+        <button class="btn-label ai" id="btn-label-ai" disabled>
+          🤖 AI 생성 (AI Generated)
+        </button>
+      </div>
+      <div class="label-result" id="label-result"></div>
+    </div>
+
+    <!-- ─── Training Control ────────────────── -->
+    <div class="learn-card">
+      <div class="lc-head">
+        <div class="lc-icon train">⚡</div>
+        <div>
+          <h3>학습 제어</h3>
+          <p>라벨링된 데이터로 온라인 학습 실행</p>
+        </div>
+      </div>
+      <div class="train-info" id="train-info">
+        <div class="ti-row">
+          <span>모델 유형</span>
+          <strong>SGDClassifier (log_loss)</strong>
+        </div>
+        <div class="ti-row">
+          <span>특성 수</span>
+          <strong>14개 물리 지표</strong>
+        </div>
+        <div class="ti-row">
+          <span>학습 방식</span>
+          <strong>증분 학습 (partial_fit)</strong>
+        </div>
+        <div class="ti-row">
+          <span>클래스</span>
+          <strong>real / ai_generated</strong>
+        </div>
+      </div>
+      <button class="btn-train" id="btn-train-all">
+        <span>🎯</span> 전체 데이터 재학습
+      </button>
+      <div class="train-progress" id="train-progress" style="display:none">
+        <div class="tp-bar"><div class="tp-fill" id="tp-fill"></div></div>
+        <span id="tp-msg">학습 중...</span>
+      </div>
+      <div class="train-result" id="train-result"></div>
+    </div>
+
+    <!-- ─── Dataset Browser ─────────────────── -->
+    <div class="learn-card full-width">
+      <div class="lc-head">
+        <div class="lc-icon db">📊</div>
+        <div>
+          <h3>라벨 데이터셋 브라우저</h3>
+          <p>수집 및 라벨링된 샘플 목록 · 필터링 · 삭제</p>
+        </div>
+        <div class="db-filters">
+          <button class="db-filter active" data-filter="all">전체</button>
+          <button class="db-filter" data-filter="real">실제</button>
+          <button class="db-filter" data-filter="ai_generated">AI생성</button>
+          <button class="db-filter" data-filter="manual">수동라벨</button>
+        </div>
+      </div>
+      <div class="dataset-table-wrap">
+        <table class="dataset-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>라벨</th>
+              <th>출처</th>
+              <th>유형</th>
+              <th>시간</th>
+              <th>삭제</th>
+            </tr>
+          </thead>
+          <tbody id="dataset-tbody">
+            <tr><td colspan="6" class="table-empty">데이터셋을 로드 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="db-pagination" id="db-pagination">
+        <button class="db-page-btn" id="db-prev">◀ 이전</button>
+        <span id="db-page-info">1 / 1</span>
+        <button class="db-page-btn" id="db-next">다음 ▶</button>
+      </div>
+    </div>
+
+    <!-- ─── Learning Log ────────────────────── -->
+    <div class="learn-card full-width">
+      <div class="lc-head">
+        <div class="lc-icon log">📋</div>
+        <div>
+          <h3>실시간 학습 로그</h3>
+          <p>파이프라인·라벨링·학습 이벤트 스트림</p>
+        </div>
+        <button class="btn-refresh" id="btn-log-clear">로그 지우기</button>
+      </div>
+      <div class="learning-log" id="learning-log">
+        <div class="log-empty">이벤트 로그가 여기에 표시됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /page-learning -->
 
 </div><!-- /page-wrap -->
 

@@ -1,9 +1,9 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════╗
- * ║  FACT MAZE v5 — 통합 AI 이미지 탐지 플랫폼                           ║
+ * ║  FACT MAZE v6 — 통합 AI 이미지 탐지 플랫폼                           ║
  * ║  ─────────────────────────────────────────────────────────────────   ║
- * ║  물리적 특성 분석 + GAN 적대 학습 시뮬레이터 + 메타데이터 탐지      ║
- * ║  + 외부 AI 검증 크로스체크 + 전쟁/분쟁 팩트체크 DB                  ║
+ * ║  물리적 특성 분석 + GAN + 메타데이터 탐지 + 외부 AI 검증           ║
+ * ║  + 빅데이터 파이프라인 + 실시간 라벨링 + 온라인 학습 엔진           ║
  * ╚═══════════════════════════════════════════════════════════════════════╝
  */
 
@@ -1104,9 +1104,207 @@ app.get('/api/gan-status', (req, res) => {
   });
 });
 
-// ── WebSocket ──
+// ══════════════════════════════════════════════════════════════════════════
+//  ⑥ ML ENGINE PROXY — Python 5001 포트 연동
+//  빅데이터 파이프라인 + 실시간 라벨링 + 온라인 학습
+// ══════════════════════════════════════════════════════════════════════════
+
+const ML_ENGINE_URL = process.env.ML_ENGINE_URL || 'http://localhost:5001';
+const { spawn }     = require('child_process');
+
+let mlProcess = null;
+let mlEngineReady = false;
+
+// ── ML Engine Lifecycle ──────────────────────────────────────────────────
+function startMLEngine() {
+  if (mlProcess) return;
+  console.log('[ML] Starting Python ML engine on port 5001...');
+  mlProcess = spawn('python3', [path.join(__dirname, 'ml_engine.py')], {
+    env: { ...process.env, ML_PORT: '5001' },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  mlProcess.stdout.on('data', d => {
+    const line = d.toString().trim();
+    console.log(`[ML] ${line}`);
+    if (line.includes('Starting ML Engine') || line.includes('Running on')) {
+      mlEngineReady = true;
+      broadcast({ type: 'ml_engine_ready', msg: 'ML Learning Engine Online' });
+    }
+  });
+  mlProcess.stderr.on('data', d => console.error(`[ML-ERR] ${d.toString().trim()}`));
+  mlProcess.on('close', code => {
+    console.log(`[ML] Engine exited with code ${code}`);
+    mlEngineReady = false;
+    mlProcess = null;
+    // Auto-restart after 5s
+    setTimeout(startMLEngine, 5000);
+  });
+}
+
+async function proxyToML(endpoint, options = {}) {
+  try {
+    const nodeFetch = (await import('node-fetch')).default;
+    const url = `${ML_ENGINE_URL}${endpoint}`;
+    const res = await nodeFetch(url, { ...options, timeout: 30000 });
+    return await res.json();
+  } catch (err) {
+    return { error: `ML Engine unavailable: ${err.message}`, ml_ready: false };
+  }
+}
+
+// ── ML Status endpoint ───────────────────────────────────────────────────
+app.get('/api/ml/status', async (req, res) => {
+  const status = await proxyToML('/ml/status');
+  res.json({ ...status, ml_engine_ready: mlEngineReady });
+});
+
+app.get('/api/ml/health', async (req, res) => {
+  const health = await proxyToML('/ml/health');
+  res.json({ ...health, ml_engine_process: mlEngineReady });
+});
+
+// ── Dataset Stats ────────────────────────────────────────────────────────
+app.get('/api/ml/dataset/stats', async (req, res) => {
+  const stats = await proxyToML('/ml/dataset/stats');
+  res.json(stats);
+});
+
+// ── List Labeled Samples ─────────────────────────────────────────────────
+app.get('/api/ml/labeled', async (req, res) => {
+  const q = new URLSearchParams(req.query).toString();
+  const data = await proxyToML(`/ml/labeled${q ? '?'+q : ''}`);
+  res.json(data);
+});
+
+// ── Delete Labeled Sample ────────────────────────────────────────────────
+app.delete('/api/ml/labeled/:id', async (req, res) => {
+  const data = await proxyToML(`/ml/labeled/${req.params.id}`, { method: 'DELETE' });
+  res.json(data);
+});
+
+// ── Label Image (upload + extract features + save label) ─────────────────
+app.post('/api/ml/label_image', upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image' });
+  const label = req.body.label;
+  if (!['real','ai_generated'].includes(label)) {
+    return res.status(400).json({ error: 'Label must be "real" or "ai_generated"' });
+  }
+  try {
+    const FormData = (await import('node-fetch')).FormData || null;
+    // Read image bytes and forward to ML engine
+    const imgBytes = fs.readFileSync(req.file.path);
+    const { Blob } = await import('buffer');
+    const nodeFetch = (await import('node-fetch')).default;
+
+    // Use form-data package approach
+    const formData = new (require('form-data'))();
+    formData.append('image', imgBytes, {
+      filename: req.file.originalname || 'image.jpg',
+      contentType: req.file.mimetype || 'image/jpeg'
+    });
+    formData.append('label', label);
+    formData.append('source', 'manual_upload');
+
+    const mlRes = await nodeFetch(`${ML_ENGINE_URL}/ml/label_image`, {
+      method: 'POST',
+      body: formData,
+      headers: formData.getHeaders(),
+      timeout: 30000
+    });
+    const result = await mlRes.json();
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+
+    serverStats.totalAnalyses++;
+    broadcast({ type: 'label_added', label, total: result.total_labeled });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Label image error:', err);
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Add Label by features JSON ───────────────────────────────────────────
+app.post('/api/ml/label', async (req, res) => {
+  const data = await proxyToML('/ml/label', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req.body)
+  });
+  if (!data.error) broadcast({ type: 'label_added', label: req.body.label });
+  res.json(data);
+});
+
+// ── Trigger Training ─────────────────────────────────────────────────────
+app.post('/api/ml/train', async (req, res) => {
+  const data = await proxyToML('/ml/train', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req.body || {})
+  });
+  if (!data.error) broadcast({ type: 'training_started' });
+  res.json(data);
+});
+
+// ── Big Data Pipeline ────────────────────────────────────────────────────
+app.post('/api/ml/pipeline', async (req, res) => {
+  const body = req.body || {};
+  const data = await proxyToML('/ml/pipeline', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!data.error) {
+    broadcast({
+      type: 'pipeline_started',
+      real_count: body.real_count || 10,
+      ai_count:   body.ai_count   || 10
+    });
+  }
+  res.json(data);
+});
+
+// ── ML Predict (image → ML model score) ──────────────────────────────────
+app.post('/api/ml/predict', upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image' });
+  try {
+    const imgBytes = fs.readFileSync(req.file.path);
+    const formData = new (require('form-data'))();
+    formData.append('image', imgBytes, {
+      filename: req.file.originalname || 'image.jpg',
+      contentType: req.file.mimetype || 'image/jpeg'
+    });
+    const nodeFetch = (await import('node-fetch')).default;
+    const mlRes = await nodeFetch(`${ML_ENGINE_URL}/ml/predict`, {
+      method: 'POST',
+      body: formData,
+      headers: formData.getHeaders(),
+      timeout: 30000
+    });
+    const result = await mlRes.json();
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.json(result);
+  } catch (err) {
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Model Info ───────────────────────────────────────────────────────────
+app.get('/api/ml/model/info', async (req, res) => {
+  const data = await proxyToML('/ml/model/info');
+  res.json(data);
+});
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
 wss.on('connection', ws => {
-  ws.send(JSON.stringify({ type:'connected', msg:'Fact Maze v5 Engine Online', stats: serverStats, ganStatus: { rounds: ganWeights.roundsCompleted, lr: ganWeights.learningRate } }));
+  ws.send(JSON.stringify({
+    type:'connected',
+    msg:'Fact Maze v6 Engine Online',
+    stats: serverStats,
+    ganStatus: { rounds: ganWeights.roundsCompleted, lr: ganWeights.learningRate },
+    mlReady: mlEngineReady
+  }));
   ws.on('close', () => {});
 });
 
@@ -1116,4 +1314,8 @@ function broadcast(data) {
 
 const PORT = process.env.PORT || 3000;
 fs.mkdirSync('uploads', { recursive: true });
-server.listen(PORT, '0.0.0.0', () => console.log(`Fact Maze v5 running on :${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Fact Maze v6 running on :${PORT}`);
+  // Start ML engine after a short delay
+  setTimeout(startMLEngine, 2000);
+});
