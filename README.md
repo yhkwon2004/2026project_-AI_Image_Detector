@@ -8,7 +8,7 @@
 
 | 환경 | URL |
 |------|-----|
-| **프로덕션 데모** | https://3000-i7qollwmnn9ftxgjyfx36-b32ec7bb.sandbox.novita.ai |
+| **프로덕션 데모** | https://3000-ii7n0v0uca8g55c0qrqox-583b4d74.sandbox.novita.ai |
 | **헬스 체크** | https://3000-i7qollwmnn9ftxgjyfx36-b32ec7bb.sandbox.novita.ai/api/health |
 
 > ⚠️ 샌드박스 URL은 세션에 따라 변경될 수 있습니다. 로컬 실행은 아래 설치 가이드를 참고하세요.
