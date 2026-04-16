@@ -1,602 +1,527 @@
-# 🔍 Fact Maze — AI 딥페이크·허위 이미지 탐지 플랫폼
+# Fact Maze v7 — AI 딥페이크·허위 이미지 탐지 플랫폼
 
-> **7단계 과학적 알고리즘**으로 AI 생성 이미지와 딥페이크를 탐지하는 오픈소스 플랫폼
-
----
-
-## 🌐 라이브 데모
-
-| 환경 | URL |
-|------|-----|
-| **프로덕션 데모** | https://3000-ii7n0v0uca8g55c0qrqox-583b4d74.sandbox.novita.ai |
-| **헬스 체크** | https://3000-i7qollwmnn9ftxgjyfx36-b32ec7bb.sandbox.novita.ai/api/health |
-
-> ⚠️ 샌드박스 URL은 세션에 따라 변경될 수 있습니다. 로컬 실행은 아래 설치 가이드를 참고하세요.
+> **빅데이터 파이프라인 · 실시간 라벨링 · 온라인 학습 · 17개 기관 교차검증**  
+> 7단계 물리 특성 분석 + GAN 판별자 + 확산모델 탐지 + 메타데이터 포렌식
 
 ---
 
 ## 📋 목차
 
-1. [기능 개요](#기능-개요)
-2. [스크린샷](#스크린샷)
-3. [7단계 탐지 알고리즘](#7단계-탐지-알고리즘)
-4. [시스템 요구사항](#시스템-요구사항)
-5. [설치 방법](#설치-방법)
-6. [실행 방법](#실행-방법)
-7. [API 문서](#api-문서)
-8. [파일 구조](#파일-구조)
-9. [의존성 목록](#의존성-목록)
-10. [AI 윤리 원칙](#ai-윤리-원칙)
-11. [기존 서비스와의 차별점](#기존-서비스와의-차별점)
-12. [확장 로드맵](#확장-로드맵)
-13. [학술 출처](#학술-출처)
-14. [오류 대처 가이드](#오류-대처-가이드)
-15. [기여 방법](#기여-방법)
-16. [라이선스](#라이선스)
+- [시스템 아키텍처](#-시스템-아키텍처)
+- [데이터 수집·처리 흐름](#-데이터-수집처리-흐름)
+- [7단계 분석 알고리즘](#-7단계-분석-알고리즘)
+- [물리적 특성 vs AI 생성 패턴](#-물리적-특성-vs-ai-생성-패턴)
+- [교차검증 시스템](#-교차검증-시스템-17개-기관)
+- [빅데이터 + 실시간 학습](#-빅데이터--실시간-학습)
+- [API 레퍼런스](#-api-레퍼런스)
+- [설치 및 실행](#-설치-및-실행)
 
 ---
 
-## 기능 개요
-
-| 기능 | 설명 |
-|------|------|
-| 📤 **이미지 업로드** | JPG / PNG / WebP / GIF, 최대 30 MB |
-| 🔬 **7단계 AI 탐지** | EXIF → 휘도 → Sobel → 벡터 → 공분산 → PCA → 복합 점수 |
-| 📊 **실시간 결과** | 탐지 확률(%), 판정 이유, 행렬 시각화 |
-| 🌐 **웹 검증** | 12개 팩트체크 소스 크로스레퍼런스 |
-| 💬 **AI 챗봇** | 알고리즘·결과 해석 Q&A |
-| 📥 **리포트 내보내기** | JSON 형식 상세 분석 보고서 |
-| 🔴 **서버 상태 바** | 전 페이지 고정 — 실시간 연결/통계 표시 |
-| 🎨 **7색 디자인 시스템** | 다크 테마, 페이지 전환 모션 |
-| 📡 **WebSocket** | 실시간 이벤트 브로드캐스트 |
-
----
-
-## 스크린샷
+## 🏗️ 시스템 아키텍처
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  🔍 FACT MAZE     홈   알고리즘   분석         🟢 서버 온라인  243분  │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│         AI 딥페이크·허위 이미지를 7단계로 탐지합니다                  │
-│                                                                      │
-│  [ 이미지 업로드 · 분석 시작 ]      [ 알고리즘 원리 보기 ]           │
-│                                                                      │
-│  ● 12개 팩트체크 소스  ● 7단계 분석  ● 100% 무료  ● 30MB 지원      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7단계 탐지 알고리즘
-
-### 수학적 파이프라인
-
-```
-이미지 입력
-    │
-    ▼ STEP 1 — 이미지 수집 & 메타데이터
-    │  • EXIF 분석, 해상도, 색공간 확인
-    │  출처: sharp/libvips, EXIF ISO 12232:2006
-    │
-    ▼ STEP 2 — 휘도 추출 (BT.709 표준)
-    │  L(x,y) = 0.2126·R + 0.7152·G + 0.0722·B
-    │  출처: ITU-R BT.709-6 (2015), IEC 61966-2-1
-    │
-    ▼ STEP 3 — Sobel 그래디언트 계산
-    │  Gx = ∂L/∂x,  Gy = ∂L/∂y
-    │  |∇L| = √(Gx² + Gy²)
-    │  출처: Sobel & Feldman (1968), OpenCV docs
-    │
-    ▼ STEP 4 — 벡터 구성 & 행렬 변환
-    │  v(x,y) = [Gx, Gy]ᵀ  →  M ∈ ℝ^(N×2)
-    │  고주파 비율 계산 (|∇L| > 임계값)
-    │  출처: Kang et al. (2014), IEEE T-IFS
-    │
-    ▼ STEP 5 — 공분산 행렬 C = (1/N)·Mᵀ·M
-    │  C = [[C₀₀, C₀₁], [C₁₀, C₁₁]]
-    │  Trace(C) = λ₁ + λ₂
-    │  출처: Matern et al. (2019), CVPR Workshops
-    │
-    ▼ STEP 6 — PCA 고유값 + 채도 + 블록 분석
-    │  이방성(Anisotropy) = |λ₁ - λ₂| / (λ₁ + λ₂ + ε)
-    │  채도 표준편차, 블록 주파수 불규칙성
-    │  출처: Jolliffe (2002), Corvi et al. (2023) ICASSP
-    │
-    ▼ STEP 7 — 복합 AI 확률 점수
-       • Trace < 300  → +30% (과도한 평탄화)
-       • Trace < 800  → +20% (낮은 텍스처 다양성)
-       • 이방성 < 0.2 → +20% (방향 무작위성)
-       • 이방성 > 0.6 → -15% (자연 구조 특징)
-       • 채도σ < 0.05 → +15% (균일한 색상)
-       • 블록 불규칙 < 2.0 → +10% (AI 패턴)
-       ─────────────────────────────────────
-       ≤ 35% → ✅ 실제 사진 가능성 높음
-       36-62% → ⚠️ 불확실 — 추가 검증 필요
-       > 62% → 🚨 AI 생성 가능성 높음
-       출처: Wang et al. CVPR (2020), Corvi et al. ICASSP (2023)
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       FACT MAZE v7 — 전체 아키텍처                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  [브라우저 클라이언트]                                                    │
+│    ├── 홈 페이지        (히어로 + 통계)                                  │
+│    ├── 이미지 분석 페이지 (드래그&드롭 + 10단계 토글)                      │
+│    │    ├── 🖼️ 이미지 분석    ─→ 원본 + 4개 처리 맵 시각화               │
+│    │    ├── 📊 단계별 분석    ─→ 10단계 AI 신호 (HIGH/MEDIUM/LOW)        │
+│    │    ├── 🔢 물리 지표      ─→ 14개 물리 특성값 + 레이더 차트           │
+│    │    ├── 🌐 17기관 교차검증 ─→ IFCN + OSINT + 국내기관 실시간         │
+│    │    ├── 🧠 GAN 학습       ─→ 가중치 + 학습 진행 시각화               │
+│    │    ├── 🔗 외부 검증      ─→ 전문 검증 사이트 크로스체크             │
+│    │    ├── 📰 팩트체크 DB    ─→ GDELT + DuckDuckGo + Wikipedia          │
+│    │    ├── 💬 AI 채팅        ─→ 분석 결과 기반 대화                     │
+│    │    └── 📄 보고서         ─→ JSON 내보내기                           │
+│    ├── 🧠 AI 학습 페이지    (ML 엔진 + 빅데이터 파이프라인)               │
+│    ├── 🔀 시스템 흐름도     (데이터 흐름 + 아키텍처 시각화)               │
+│    ├── ⚙️ 알고리즘 페이지   (7단계 수학적 파이프라인 설명)                │
+│    └── ℹ️ 서비스 소개     (기술 스택 + 팀 정보)                          │
+│                                                                         │
+│  [Node.js 서버 — server.js, PORT 3000]                                  │
+│    ├── POST /api/analyze          ← 이미지 10단계 분석 + GAN              │
+│    ├── POST /api/visualize        ← 물리 맵 생성 (휘도/그라디언트/ELA/PRNU)│
+│    ├── POST /api/crossverify      ← 17개 기관 실시간 교차검증             │
+│    ├── POST /api/webverify        ← 팩트체크 DB 검색                     │
+│    ├── POST /api/chat             ← 분석 기반 AI 채팅                    │
+│    ├── GET  /api/report/:id       ← 보고서 조회                          │
+│    ├── GET  /api/export/:id       ← 보고서 JSON 내보내기                 │
+│    ├── GET  /api/gan-status       ← GAN 학습 상태                       │
+│    ├── GET  /api/agencies         ← 팩트체크 기관 목록                   │
+│    ├── GET  /api/ml/status        ← ML 엔진 상태 (proxy → Python:5001)   │
+│    ├── GET  /api/ml/health        ← ML 헬스체크                          │
+│    ├── GET  /api/ml/dataset/stats ← 데이터셋 통계                        │
+│    ├── GET  /api/ml/labeled       ← 라벨링 목록                          │
+│    ├── POST /api/ml/label_image   ← 이미지 업로드 + 라벨링               │
+│    ├── POST /api/ml/label         ← 특성값으로 라벨링                    │
+│    ├── POST /api/ml/train         ← 수동 학습 트리거                     │
+│    ├── POST /api/ml/pipeline      ← 빅데이터 파이프라인 실행             │
+│    ├── POST /api/ml/predict       ← ML 모델 예측                         │
+│    └── WebSocket ws://            ← 실시간 이벤트 브로드캐스트            │
+│                                                                         │
+│  [Python ML 엔진 — ml_engine.py, PORT 5001]                             │
+│    ├── 14개 물리 특성 추출 (PIL + NumPy)                                 │
+│    ├── SGDClassifier 온라인 증분 학습                                     │
+│    ├── StandardScaler 정규화                                             │
+│    ├── 빅데이터 파이프라인 (Picsum Photos, simulated AI)                  │
+│    └── 모델 영속화 (joblib)                                              │
+│                                                                         │
+│  [외부 데이터 소스]                                                       │
+│    ├── RSS: Reuters, Snopes, FactCheck.org, Bellingcat, StopFake, Yonhap│
+│    ├── GDELT API: 전지구 뉴스 실시간 검색                                │
+│    ├── DuckDuckGo Instant API: 웹 검색                                   │
+│    └── Wikipedia REST API: 개념 설명                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 시스템 요구사항
+## 📊 데이터 수집·처리 흐름
 
-| 항목 | 최소 | 권장 |
-|------|------|------|
-| **Node.js** | 18.x | 20.x LTS |
-| **npm** | 8.x | 10.x |
-| **RAM** | 512 MB | 1 GB |
-| **Disk** | 200 MB | 500 MB |
-| **OS** | Ubuntu 20.04 / macOS 12 / Windows 10 | Ubuntu 22.04 |
-| **Port** | 3000 (기본값) | 변경 가능 |
-
----
-
-## 설치 방법
-
-### 1. 저장소 클론
-
-```bash
-git clone <repository-url>
-cd webapp
 ```
-
-### 2. 의존성 설치
-
-```bash
-npm install
-```
-
-> 📌 `sharp` 패키지는 네이티브 바이너리를 포함하므로 빌드 도구가 필요할 수 있습니다.
->
-> **Ubuntu/Debian:**
-> ```bash
-> sudo apt-get install -y build-essential python3
-> npm install
-> ```
->
-> **macOS:**
-> ```bash
-> xcode-select --install
-> npm install
-> ```
->
-> **Windows:**
-> ```bash
-> npm install --global windows-build-tools
-> npm install
-> ```
-
-### 3. 업로드 디렉토리 확인
-
-```bash
-mkdir -p uploads
+[이미지 입력]
+     │
+     ▼
+[Sharp 전처리]
+  • 512×512 리사이즈 (비율 유지)
+  • RAW RGB 픽셀 추출 (채널 3)
+  • EXIF 메타데이터 파싱
+     │
+     ├──────────────────────────────────────────────┐
+     │                                              │
+     ▼                                              ▼
+[물리 특성 분석 파이프라인]                    [ML 엔진 예측]
+  STEP 1: EXIF·메타데이터 분석                  14개 특성 → SGD → P(AI)
+  STEP 2: BT.709 휘도·히스토그램 χ²
+  STEP 3: Sobel 그라디언트·공분산 행렬 C
+  STEP 4: ELA (Error Level Analysis)
+  STEP 5: DCT 주파수 스펙트럼
+  STEP 6: PRNU 센서 노이즈 핑거프린트
+  STEP 7: GAN 체커보드 아티팩트 탐지
+  STEP 8: 확산 모델 텍스처 평탄화
+  STEP 9: 채도 σ + 블록 주파수
+  STEP 10: GAN 판별자 최종 복합 판정
+     │
+     ▼
+[AI 확률 계산 + 판정]
+  P(AI) = Σ(단계별 기여) + GAN 가중합
+  CONFIRMED_AI  ≥ 75% | LIKELY_AI  ≥ 45%
+  UNCERTAIN     ≥ 30% | LIKELY_REAL < 30%
+     │
+     ├───────────────────────┐
+     │                       │
+     ▼                       ▼
+[이미지 시각화 맵]       [교차검증]
+  • 원본 이미지            17개 기관 접속
+  • 휘도 맵 (BT.709)       RSS 실시간 수집
+  • Sobel 그라디언트 맵     GDELT 뉴스 검색
+  • ELA 오류 레벨 맵        DuckDuckGo 검색
+  • PRNU 센서 노이즈 맵     Wikipedia 참조
+     │
+     ▼
+[보고서 생성 (JSON)]
+  reportId = UUID v4
+  uploads/<id>.json
+  WebSocket 브로드캐스트
 ```
 
 ---
 
-## 실행 방법
+## 🔬 7단계 분석 알고리즘
 
-### 개발 서버 시작
+### 핵심 개념
+> **AI 생성 이미지 = 노이즈 기반 확률 합성** (GAN 역전파 또는 확산 모델 반복 노이즈 제거)  
+> **실제 이미지 = 물리 법칙 기반 특성 보유** (빛·렌즈·센서·대기 등 자연 현상)
 
-```bash
-npm start
-# 또는
-node server.js
+### STEP 1 — EXIF & 메타데이터 분석
+
+```
+탐지 항목: Software 필드, 13종 AI 도구 시그니처
+AI 도구:   Stable Diffusion, Midjourney, DALL-E, ComfyUI, Adobe Firefly,
+           Runway, Imagen, Kling, Flux, Pika, SeaArt, NightCafe, Leonardo
+
+결과:
+  실제 이미지: Make=Canon, Model=EOS R5, ISO=400, GPS 포함
+  AI 이미지:   Software="Stable Diffusion", EXIF 없음, GPS 없음
 ```
 
-서버가 시작되면:
+### STEP 2 — BT.709 휘도 추출 (ITU-R BT.709-6)
+
 ```
-Fact Maze running on :3000
-```
+공식: L(x,y) = 0.2126·R + 0.7152·G + 0.0722·B
 
-브라우저에서 접속:
-- **메인 페이지:** http://localhost:3000
-- **API 헬스 체크:** http://localhost:3000/api/health
+지표:
+  • 평균 휘도 (mean L)
+  • 표준편차 σ(L)
+  • 히스토그램 χ² 균일성 검정
 
-### 백그라운드 실행 (PM2)
-
-```bash
-# PM2 설치 (전역)
-npm install -g pm2
-
-# 서버 시작
-pm2 start server.js --name "fact-maze"
-
-# 상태 확인
-pm2 status
-
-# 로그 확인
-pm2 logs fact-maze --nostream
-
-# 자동 재시작 등록 (시스템 재부팅 시)
-pm2 startup
-pm2 save
+임계값:
+  σ(L) < 15  → AI 신호 (균일한 밝기)
+  χ² > 8000  → HIGH (과도 평탄화)
+  χ² < 5000  → LOW  (자연 분포)
 ```
 
-### 포트 변경
+### STEP 3 — Sobel 그라디언트 & 공분산 행렬
 
-```bash
-PORT=8080 node server.js
+```
+Sobel 연산자:
+  Gx = [-1,0,+1; -2,0,+2; -1,0,+1] * I
+  Gy = [-1,-2,-1; 0,0,0; +1,+2,+1] * I
+
+공분산 행렬:
+  M ∈ ℝ^(N×2)  (모든 픽셀의 Gx, Gy)
+  C = (1/N) · MᵀM = [[C₀₀, C₀₁], [C₀₁, C₁₁]]
+
+고유값 분해:
+  λ₁ ≥ λ₂ (PCA 주성분)
+  Trace(C) = λ₁ + λ₂  (총 그라디언트 에너지)
+  이방성 = (λ₁ - λ₂) / λ₁  (방향성 강도)
+
+임계값:
+  Trace < 300 → HIGH (AI 등방성 노이즈)
+  Trace > 800 → LOW  (강한 방향성 경계)
+```
+
+### STEP 4 — ELA (Error Level Analysis)
+
+```
+공식: ELA(x,y) = |I_orig(x,y) - I_75%(x,y)|
+
+8×8 블록 단위 압축 오류 분포 분석
+
+임계값:
+  ELA mean < 1.0 → HIGH  (AI: 처음부터 렌더링, 재압축 흔적 없음)
+  ELA mean < 1.5 → MEDIUM
+  ELA mean > 1.5 → LOW   (실제: 카메라 → JPEG 인코딩 흔적)
+```
+
+### STEP 5 — DCT 주파수 스펙트럼
+
+```
+8×8 블록 DCT 분석:
+  저주파  (DC + 저역)  = 윤곽·색상
+  중주파  (중역)       = 질감·세부
+  고주파  (고역)       = 엣지·미세 노이즈
+
+AI 생성 패턴:
+  확산 모델: 고주파 < 3%  (평탄화)
+  실제 이미지: 고주파 > 6% (자연 노이즈)
+
+임계값:
+  highRatio < 0.03 → HIGH  (+12% AI 확률)
+  highRatio < 0.06 → MEDIUM
+```
+
+### STEP 6 — PRNU 센서 노이즈
+
+```
+Wiener 필터 기반 노이즈 추출:
+  Noise(x,y) = I(x,y) - μ_local(3×3)
+
+분석 지표:
+  • 분산 (카메라 센서 강도)
+  • 첨도 kurtosis > 6 → 비정상
+  • 공간 상관 corr(row_i, row_{i+1})
+
+임계값:
+  spatialCorr < 0.05 → HIGH (카메라 PRNU 없음)
+  kurtosis > 6       → HIGH (비정상 노이즈 분포)
+```
+
+### STEP 7 — GAN 아티팩트 & 확산 모델
+
+```
+GAN 체커보드:
+  주기적 패턴 비율 > 0.03 → 감지됨
+  행 분산 variance < 0.5  → 의심
+
+확산 모델:
+  색상 다양성 score
+  텍스처 분산 score
+  → 둘 다 낮음 → CONFIRMED DIFFUSION
 ```
 
 ---
 
-## API 문서
+## ⚖️ 물리적 특성 vs AI 생성 패턴
 
-### `GET /api/health`
-서버 상태 및 통계를 반환합니다.
+| 특성 | 실제 이미지 | AI 생성 이미지 |
+|------|------------|----------------|
+| **EXIF 메타데이터** | 카메라 모델·GPS·셔터속도 존재 | 없음 또는 AI 소프트웨어명 |
+| **BT.709 휘도 σ** | σ > 40 (다양한 밝기) | σ < 15 (균일 밝기) |
+| **Sobel Trace(C)** | > 2000 (강한 엣지) | < 300 (약한 등방성) |
+| **ELA 평균** | > 1.5 (압축 흔적) | ≈ 0 (최초 렌더링) |
+| **DCT 고주파** | > 6% (자연 노이즈) | < 3% (확산 평탄화) |
+| **PRNU 공간상관** | > 0.05 (센서 핑거프린트) | < 0.05 (없음) |
+| **채도 σ** | > 0.20 (다채로운 색상) | < 0.05 (균일 채도) |
+| **블록 불규칙성** | > 25 (자연 변동) | < 3 (GAN 패턴) |
 
-**Response:**
-```json
-{
-  "status": "online",
-  "uptime": 243,
-  "analyses": 5,
-  "factChecks": 2,
-  "activeSessions": 1,
-  "timestamp": "2026-03-24T04:28:34.414Z"
+---
+
+## 🌐 교차검증 시스템 (17개 기관)
+
+### 국제 IFCN 인증 기관
+| 기관 | URL | 접근 방식 |
+|------|-----|----------|
+| Reuters Fact Check | https://www.reuters.com/fact-check/ | RSS 실시간 |
+| AFP Fact Check | https://fact.afp.com/ | 참조 |
+| Snopes | https://www.snopes.com/ | RSS 실시간 |
+| FactCheck.org | https://www.factcheck.org/ | RSS 실시간 |
+| Bellingcat OSINT | https://www.bellingcat.com/ | RSS 실시간 |
+| StopFake | https://www.stopfake.org/en/tag/fake-photo/ | RSS 실시간 |
+| MENA Fact Check | https://menafactcheck.com/ | 참조 |
+
+### 국내 기관
+| 기관 | URL | 비고 |
+|------|-----|------|
+| 연합뉴스 팩트체크 | https://www.yna.co.kr/factcheck | RSS 실시간 |
+| SBS 팩트체크 | https://news.sbs.co.kr/news/newsMain.do?plink=FACTCHECK | 참조 |
+| KISA 한국인터넷진흥원 | https://www.kisa.or.kr/1060 | AI 딥페이크 가이드라인 |
+| 경찰청 사이버수사대 | https://cyberbureau.police.go.kr/ | 딥페이크 신고 182 |
+
+### 연구·표준·기술 기관
+| 기관 | URL | 비고 |
+|------|-----|------|
+| MIT Media Lab Detect | https://detect.mit.edu/ | 얼굴 딥페이크 전용 |
+| NIST AI RMF | https://www.nist.gov/artificial-intelligence | RSS 실시간 |
+| Google DeepMind SynthID | https://deepmind.google/technologies/synthid/ | 워터마크 |
+| C2PA 콘텐츠 인증 연합 | https://c2pa.org/ | 콘텐츠 자격증명 |
+| GDELT 글로벌 뉴스 DB | https://gdeltproject.org/ | 실시간 뉴스 API |
+| Wikipedia/Wikidata | https://en.wikipedia.org/ | REST API |
+
+### 교차검증 점수 계산
+```
+finalAIProb = baseAIProb
+  + (metatdataConfirmed ? +15 : 0)
+  + (gdeltArticles > 3 ? +5 : 0)
+
+신뢰도:
+  liveSourcesChecked ≥ 4 → HIGH
+  liveSourcesChecked ≥ 2 → MEDIUM
+  otherwise              → LOW
+```
+
+---
+
+## 🤖 빅데이터 + 실시간 학습
+
+### ML 엔진 구조 (ml_engine.py)
+
+```
+[빅데이터 파이프라인]
+  실제 이미지: Picsum Photos (https://picsum.photos/)
+  AI 이미지:   시뮬레이션 생성 (균일 노이즈 패턴)
+     │
+     ▼
+[14개 물리 특성 추출]
+  lum_mean, lum_std, hist_entropy,
+  sobel_mean, sobel_std, high_freq_ratio,
+  ela_mean, ela_max,
+  dct_low, dct_mid, dct_high,
+  prnu_variance, prnu_kurtosis, prnu_spatial_corr
+
+     │
+     ▼
+[StandardScaler 정규화]
+  z = (x - μ) / σ  (온라인 증분 업데이트)
+
+     │
+     ▼
+[SGDClassifier (log_loss)]
+  partial_fit(X, y, classes=['real','ai_generated'])
+  compute_class_weight('balanced') 로 클래스 불균형 처리
+
+     │
+     ▼
+[모델 영속화]
+  ml_models/model.pkl  (joblib)
+  ml_data/labeled_db.json (라벨링 DB)
+```
+
+### 실시간 라벨링 API
+
+```
+POST /api/ml/label_image
+  body: FormData { image: File, label: "real"|"ai_generated", source: str }
+  → 특성 추출 → 라벨 저장 → 즉시 partial_fit (최근 10개)
+
+POST /api/ml/label
+  body: { sample_id: str, label: str, features: [] }
+  → 라벨만 저장 → 5개마다 자동 배치 학습
+
+POST /api/ml/train
+  → 전체 라벨 데이터로 재학습
+
+POST /api/ml/pipeline
+  body: { real_count: int, ai_count: int, auto_train: bool }
+  → 빅데이터 수집 → 특성 추출 → 라벨링 → 학습
+```
+
+---
+
+## 📡 API 레퍼런스
+
+### 이미지 분석
+
+```
+POST /api/analyze
+Content-Type: multipart/form-data
+body: { image: File }
+
+Response: {
+  success: true,
+  reportId: "uuid-v4",
+  analysis: {
+    dimensions: { width, height, format, analyzed },
+    luminance:  { mean, std, histChi2 },
+    covariance: { trace, c00, c11, c01, anisotropy, lambda1, lambda2 },
+    ela:        { mean, max },
+    dct:        { lowRatio, midRatio, highRatio },
+    prnu:       { variance, kurtosis, spatialCorr },
+    saturation: { mean, std },
+    blockFreq:  <number>,
+    ganArtifacts: { isCheckerboard, periodicRatio, rowVariance },
+    diffusion:  { colorDiversity, isLowColorDiversity, isUniformTexture },
+    aiMetaSigs: { isConfirmedAI, detected: [{ tool, signature }] },
+    ganLearning: { roundsCompleted, accuracy, learningRate, weights },
+    steps:      [{ step, name, aiSignal, details, formula, methodology }],
+    scores: {
+      aiProbability, ganProbability, confidence,
+      verdict: "CONFIRMED_AI"|"LIKELY_AI"|"UNCERTAIN"|"LIKELY_REAL",
+      verdictLabel, totalIndicators, metadataConfirmed, reasons
+    }
+  },
+  externalChecks: [{ service, url, description, instruction, note }]
 }
 ```
 
----
+### 이미지 시각화
 
-### `POST /api/analyze`
-이미지를 업로드하고 7단계 AI 탐지를 수행합니다.
+```
+POST /api/visualize
+Content-Type: multipart/form-data
+body: { image: File }
 
-**Request:** `multipart/form-data`
-- `image`: 이미지 파일 (JPG/PNG/WebP/GIF, 최대 30MB)
+Response: {
+  success: true,
+  width: 400, height: 300,
+  maps: {
+    luminance: "data:image/png;base64,...",  // BT.709 휘도 그레이스케일
+    gradient:  "data:image/png;base64,...",  // Sobel 히트맵 (빨강=강, 파랑=약)
+    ela:       "data:image/png;base64,...",  // ELA 오렌지 히트맵
+    prnu:      "data:image/png;base64,..."   // PRNU 보라색 노이즈 맵
+  }
+}
+```
 
-**Response:**
-```json
-{
-  "success": true,
-  "reportId": "f6c3aa62-1072-4b4a-aea1-f508f603ccf4",
-  "analysis": {
-    "dimensions": { "width": 400, "height": 300, "format": "jpeg" },
-    "steps": [
-      { "step": 1, "name": "Image Ingestion & Metadata", "detail": "...", "source": "..." },
-      ...7 steps...
-    ],
-    "luminance": { "mean": "103.02", "std": "2.63" },
-    "gradient":  { "mean": "6.861",  "std": "14.200" },
-    "covariance": { "C00": "248.700", "C11": "0.000", "C01": "0.000", "trace": "248.700", "lambda1": "248.700", "lambda2": "0.000" },
-    "saturation": { "mean": "44.9", "std": "0.036" },
-    "blockFreq":  { "value": "1.53" },
-    "scores": {
-      "traceScore": "20.7",
-      "aiProbability": "43",
-      "highFreqScore": "8.0",
-      "patternScore": "7.9",
-      "verdict": "UNCERTAIN",
-      "reasons": ["판정 근거 1", "판정 근거 2", ...]
+### 교차검증
+
+```
+POST /api/crossverify
+Content-Type: application/json
+body: { reportId?: string, query?: string }
+
+Response: {
+  success: true,
+  result: {
+    timestamp, query,
+    agencies: [{ id, name, url, type, region, status, liveItems, relevance }],
+    liveData: {
+      gdelt: [{ title, url, snippet, source }],
+      duckduckgo: [{ title, url, snippet }],
+      wikipedia: { title, snippet, url }
+    },
+    crossScore: {
+      finalAIProb, liveSourcesChecked, totalAgencies,
+      gdeltArticles, verdict, confidence
     }
   }
 }
 ```
 
-**판정값 (verdict):**
-| 값 | 의미 | AI 확률 |
-|----|------|---------|
-| `LIKELY_REAL` | 실제 사진 가능성 높음 | ≤ 35% |
-| `UNCERTAIN` | 불확실 — 추가 검증 필요 | 36–62% |
-| `LIKELY_AI` | AI 생성 가능성 높음 | > 62% |
-
 ---
 
-### `POST /api/webverify`
-이미지 관련 쿼리를 팩트체크 소스와 대조합니다.
+## 🚀 설치 및 실행
 
-**Request:** `application/json`
-```json
-{ "query": "검색할 키워드 또는 설명" }
+### 요구사항
+- Node.js ≥ 18
+- Python ≥ 3.10
+- pip packages: flask, flask-cors, scikit-learn, Pillow, numpy, requests, joblib
+
+### 설치
+
+```bash
+# Node.js 의존성
+npm install
+
+# Python 의존성
+pip install flask flask-cors scikit-learn pillow numpy requests joblib
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "results": [
-    {
-      "source": "MIT Media Lab",
-      "url": "https://detect.mit.edu/",
-      "title": "MIT: 딥페이크 탐지 연구 플랫폼",
-      "snippet": "설명 텍스트...",
-      "type": "research",
-      "reliability": "high",
-      "lang": "EN"
-    }
-  ]
-}
+### 실행
+
+```bash
+# 서버 시작 (Node.js + Python ML 엔진 자동 실행)
+node server.js
+
+# 접속
+http://localhost:3000
 ```
 
----
+### 환경 변수
 
-### `POST /api/chat`
-AI 탐지 관련 질문에 답변합니다.
-
-**Request:** `application/json`
-```json
-{ "message": "알고리즘 원리를 설명해 주세요" }
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "response": "답변 텍스트..."
-}
+```bash
+PORT=3000          # Node.js 서버 포트 (기본: 3000)
+ML_ENGINE_URL=http://localhost:5001  # Python ML 엔진 URL
+ML_PORT=5001       # Python ML 엔진 포트
 ```
 
 ---
 
-### `GET /api/report/:id`
-저장된 분석 리포트를 조회합니다.
-
-**Response:** 전체 리포트 JSON 객체
-
----
-
-### `GET /api/export/:id`
-리포트를 JSON 파일로 다운로드합니다.
-
-**Response:** `Content-Disposition: attachment` 헤더와 함께 JSON 반환
-
----
-
-## 파일 구조
+## 📁 프로젝트 구조
 
 ```
 webapp/
-├── server.js                  # Express 백엔드 + 7단계 분석 엔진
-├── package.json               # 프로젝트 설정 및 의존성
-├── README.md                  # 이 파일
-├── .gitignore
-├── uploads/                   # 업로드된 이미지 및 JSON 리포트 (자동 생성)
-│   └── *.json                 # 분석 결과 저장
-└── public/                    # 정적 파일 (Express로 서빙)
-    ├── index.html             # SPA 메인 HTML (홈·알고리즘·분석 3개 페이지)
-    ├── favicon.svg            # 브라우저 아이콘
-    ├── css/
-    │   └── style.css          # 7색 디자인 시스템 + 모션 애니메이션
-    └── js/
-        └── app.js             # SPA 로직 (업로드·분석·채팅·웹검증)
+├── server.js              # 메인 서버 (Node.js + Express + WebSocket)
+├── ml_engine.py           # ML 학습 엔진 (Python + Flask + scikit-learn)
+├── package.json           # Node.js 의존성
+├── public/
+│   ├── index.html         # 싱글페이지 앱 (6개 페이지)
+│   ├── css/style.css      # 전체 스타일시트
+│   └── js/app.js          # 프론트엔드 로직
+├── uploads/               # 임시 업로드 + 분석 보고서 (JSON)
+├── ml_data/
+│   ├── labeled_db.json    # 라벨링 데이터베이스
+│   └── datasets/          # 수집된 이미지 캐시
+├── ml_models/
+│   └── model.pkl          # 훈련된 SGD 모델 (joblib)
+└── README.md              # 이 문서
 ```
 
 ---
 
-## 의존성 목록
+## 📚 참고 문헌
 
-### 런타임 의존성
-
-| 패키지 | 버전 | 용도 |
-|--------|------|------|
-| `express` | ^5.2.1 | HTTP 서버 프레임워크 |
-| `multer` | ^2.1.1 | multipart/form-data 파일 업로드 |
-| `sharp` | ^0.34.5 | 이미지 처리 (libvips 기반) — BT.709 휘도, 픽셀 데이터 |
-| `ws` | ^8.20.0 | WebSocket 서버 (실시간 상태 브로드캐스트) |
-| `cors` | ^2.8.6 | Cross-Origin Resource Sharing |
-| `uuid` | ^13.0.0 | 리포트 ID 생성 (v4 UUID) |
-| `node-fetch` | ^3.3.2 | 서버사이드 HTTP 요청 |
-
-### 개발 의존성
-
-없음 (프로덕션 의존성만 사용)
-
-### 프론트엔드 의존성 (CDN)
-
-| 리소스 | URL |
-|--------|-----|
-| Inter 폰트 | Google Fonts |
-| Space Grotesk 폰트 | Google Fonts |
-
-> 📌 **오프라인 사용:** 폰트를 로컬로 다운로드하려면 index.html의 Google Fonts 링크를 제거하고 로컬 경로로 대체하세요.
+- ITU-R BT.709-6 (2015) — *Parameter values for the HDTV standards*
+- Fridrich, J. (2009) — *Steganography in Digital Media: Principles, Algorithms, and Applications*
+- Wang, S.Y. et al. (2020) — *CNN-generated images are surprisingly easy to spot...* (CVPR 2020)
+- Corvi, R. et al. (2023) — *Intriguing properties of synthetic images: from GAN to diffusion models* (CVPR 2023)
+- Gragnaniello, D. et al. (2022) — *Are GAN generated images easy to detect?*
+- Goodfellow, I. et al. (2014) — *Generative Adversarial Networks* (NeurIPS 2014)
+- Ricker, J. et al. (2022) — *Towards the detection of diffusion model deepfakes*
 
 ---
 
-## AI 윤리 원칙
+## 🔒 법적 고지
 
-Fact Maze는 다음 AI 윤리 원칙을 준수합니다:
-
-1. **투명성 (Transparency)**
-   - 모든 탐지 기준과 수학 공식을 공개
-   - 판정 근거를 구체적 수치와 함께 제공
-   - 학술 출처를 명시
-
-2. **비차별성 (Non-discrimination)**
-   - 특정 집단·인종·성별을 기준으로 판단하지 않음
-   - 이미지 픽셀 데이터의 수학적 특성만 분석
-
-3. **개인정보 보호 (Privacy)**
-   - 업로드된 이미지는 서버 메모리에서 분석 후 파일 시스템에 저장
-   - 개인 식별 정보를 수집하거나 전송하지 않음
-   - 업로드 파일은 UUID로 익명화
-
-4. **제한성 인식 (Limitation Awareness)**
-   - AI 탐지는 확률적 판단이며 100% 정확하지 않음
-   - 35~62% 불확실 범위에서는 추가 검증을 권고
-   - 전문가 판단의 보조 도구로만 활용 권장
-
-5. **오용 방지 (Misuse Prevention)**
-   - 개인 고발·마녀사냥 목적 사용 금지
-   - 법적 증거로 단독 사용 금지
-   - 저작권 보호 이미지의 무단 분석 자제
+본 플랫폼은 교육·연구 목적으로 개발되었으며, 허위정보 확산 방지를 위한 공익적 도구입니다.  
+딥페이크 관련 신고: **경찰청 사이버수사대 182** / **KISA 불법스팸대응센터 118**
 
 ---
 
-## 기존 서비스와의 차별점
-
-| 항목 | Fact Maze | Hive Moderation | FotoForensics | Deepware |
-|------|-----------|-----------------|---------------|----------|
-| **알고리즘 공개** | ✅ 완전 공개 | ❌ 블랙박스 | △ 부분 공개 | ❌ 미공개 |
-| **수학적 근거** | ✅ 공식·출처 제공 | ❌ | △ | ❌ |
-| **한국어 지원** | ✅ 완전 한국어 | ❌ | ❌ | ❌ |
-| **무료 사용** | ✅ 100% 무료 | ❌ 유료 | ✅ | △ 제한적 |
-| **오프라인 실행** | ✅ 로컬 설치 가능 | ❌ | ❌ | ❌ |
-| **API 제공** | ✅ REST API | ✅ (유료) | ❌ | ❌ |
-| **WebSocket 실시간** | ✅ | ❌ | ❌ | ❌ |
-| **다중 팩트체크** | ✅ 12개 소스 | ❌ | ❌ | △ |
-
----
-
-## 확장 로드맵
-
-### Phase 1 (현재 완료)
-- [x] 7단계 수학 알고리즘 구현
-- [x] 웹 UI (홈·알고리즘·분석 페이지)
-- [x] 실시간 서버 상태 표시
-- [x] JSON 리포트 내보내기
-- [x] AI 챗봇 통합
-- [x] 팩트체크 소스 연동
-
-### Phase 2 (개발 예정)
-- [ ] SNS API 연동 (Twitter/X, Meta) — 바이럴 이미지 자동 탐지
-- [ ] 브라우저 확장 프로그램 (Chrome/Firefox)
-- [ ] 얼굴 위조 탐지 (FaceForensics++ 모델 통합)
-- [ ] 비디오 딥페이크 탐지
-
-### Phase 3 (계획 중)
-- [ ] B2B API 서비스 (언론사·팩트체크 기관 대상)
-- [ ] 탐지 모델 Fine-tuning (한국어 맥락 특화)
-- [ ] 분산 탐지 클러스터 (확장성)
-- [ ] C2PA 디지털 서명 검증
-
----
-
-## 학술 출처
-
-| 번호 | 출처 |
-|------|------|
-| 1 | ITU-R BT.709-6 (2015). *Parameter values for the HDTV standards for production and international programme exchange.* [link](https://www.itu.int/rec/R-REC-BT.709) |
-| 2 | Sobel, I. & Feldman, G. (1968). *A 3×3 Isotropic Gradient Operator for Image Processing.* Stanford AI Project. |
-| 3 | Kang, X. et al. (2014). *Robust JPEG Recompression Detection.* IEEE Transactions on Information Forensics and Security. [link](https://ieeexplore.ieee.org/document/6905746) |
-| 4 | Matern, F. et al. (2019). *Gradient-based image forensics.* CVPR Workshops. |
-| 5 | Wang, S.Y. et al. (2020). *CNN-Generated Images Are Surprisingly Easy to Spot but Hard to Attribute.* CVPR 2020. [arXiv](https://arxiv.org/abs/2004.10448) |
-| 6 | Corvi, R. et al. (2023). *On The Detection of Synthetic Images Generated by Diffusion Models.* ICASSP 2023. [arXiv](https://arxiv.org/abs/2211.10737) |
-| 7 | Jolliffe, I.T. (2002). *Principal Component Analysis* (2nd ed.). Springer. |
-| 8 | Golub, G.H. & Van Loan, C.F. (2013). *Matrix Computations* (4th ed.). JHU Press. |
-| 9 | Fridrich, J. & Goljan, M. (2009). *Digital image forensics.* IEEE Signal Processing Magazine. |
-| 10 | Gragnaniello, D. et al. (2022). *Are GAN Generated Images Easy to Detect?* ICASSP 2022. |
-| 11 | NIST. (2024). *AI Risk Management Framework.* [link](https://www.nist.gov/artificial-intelligence) |
-| 12 | C2PA. (2024). *Content Authenticity & Provenance Specification.* [link](https://c2pa.org/) |
-
----
-
-## 오류 대처 가이드
-
-### ❌ 서버가 시작되지 않는 경우
-
-**증상:** `Error: Cannot find module 'sharp'`
-
-```bash
-# 해결책: 네이티브 모듈 재빌드
-npm rebuild sharp
-# 또는 전체 재설치
-rm -rf node_modules && npm install
-```
-
----
-
-**증상:** `EADDRINUSE: address already in use :::3000`
-
-```bash
-# 포트 사용 중인 프로세스 확인
-lsof -i :3000
-# 프로세스 종료
-kill -9 <PID>
-# 또는 다른 포트로 실행
-PORT=3001 node server.js
-```
-
----
-
-**증상:** `Error: ENOENT: no such file or directory, 'uploads/'`
-
-```bash
-mkdir -p uploads
-node server.js
-```
-
----
-
-### ❌ 이미지 분석 오류
-
-**증상:** `File too large` (HTTP 413)
-
-- 파일 크기가 30MB 미만인지 확인
-- WebP 또는 JPG로 변환 후 재업로드
-
-**증상:** `Unsupported image format`
-
-- 지원 포맷: JPG, PNG, WebP, GIF
-- HEIC/HEIF 파일은 JPG로 변환 필요
-
----
-
-### ❌ WebSocket 연결 오류
-
-**증상:** 서버 상태가 "오프라인"으로 표시
-
-- 브라우저 콘솔에서 WebSocket 오류 확인
-- 방화벽이 WebSocket을 차단하는 경우, `/api/health` REST 폴백이 자동으로 작동함
-- HTTPS 환경에서는 WSS(보안 WebSocket)가 자동 선택됨
-
----
-
-### ❌ 폰트 로딩 오류
-
-**증상:** 폰트가 시스템 기본폰트로 표시됨
-
-- 인터넷 연결 필요 (Google Fonts CDN 사용)
-- 오프라인 환경: `public/index.html`에서 Google Fonts 링크 제거 (기본 sans-serif 폰트로 폴백)
-
----
-
-### 실행 오류 검사 결과 (2026-03-24)
-
-```
-✅ server.js         — 구문 오류 없음 (Node.js --check 통과)
-✅ public/index.html — 66,780 bytes, 모든 리소스 로드 성공
-✅ public/css/style.css — 62,439 bytes
-✅ public/js/app.js  — 48,457 bytes
-✅ public/favicon.svg — 534 bytes (브라우저 아이콘)
-✅ /api/health       — HTTP 200, 정상 응답
-✅ /api/analyze      — HTTP 200, 7단계 분석 정상 작동
-✅ /api/webverify    — HTTP 200, 12개 소스 응답
-✅ /api/chat         — HTTP 200, 챗봇 응답
-✅ /api/report/:id   — HTTP 200, 리포트 조회
-✅ /api/export/:id   — HTTP 200, JSON 다운로드
-✅ WebSocket         — 실시간 연결 정상
-✅ 정적 파일 서빙    — HTTP 200 (/, /css/, /js/, /favicon.svg)
-✅ 브라우저 콘솔 오류 — 없음 (favicon 404 수정 완료)
-```
-
-**수정된 오류:**
-- `favicon.ico` 404 오류 → `favicon.svg` 생성 및 HTML에 링크 추가
-
----
-
-## 기여 방법
-
-1. 저장소를 포크합니다.
-2. 기능 브랜치를 생성합니다: `git checkout -b feature/새기능`
-3. 변경사항을 커밋합니다: `git commit -m 'feat: 새기능 추가'`
-4. 브랜치에 푸시합니다: `git push origin feature/새기능`
-5. Pull Request를 생성합니다.
-
-### 코드 스타일
-- JavaScript: ES6+ 모듈 스타일
-- 한국어 주석 권장
-- 새로운 API 엔드포인트 추가 시 README 업데이트 필수
-
----
-
-## 라이선스
-
-MIT License — 자유롭게 사용, 수정, 배포 가능합니다.
-
----
-
-*Fact Maze는 허위정보와 딥페이크로부터 정보 생태계를 보호하기 위해 만들어진 오픈소스 프로젝트입니다.*
-*과학적 방법론과 투명한 알고리즘으로 디지털 진실을 지킵니다.* 🔍
+*Fact Maze v7 — Built with ❤️ for truth and media integrity*

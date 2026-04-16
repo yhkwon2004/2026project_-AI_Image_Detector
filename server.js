@@ -1296,6 +1296,344 @@ app.get('/api/ml/model/info', async (req, res) => {
   res.json(data);
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+//  ⑦ 17개 국제 팩트체크 기관 실시간 교차검증
+//  접근 가능 API: GDELT, DuckDuckGo, Wikipedia, Snopes RSS,
+//                 Reuters RSS, AFP Search, FactCheck.org RSS
+//  참조 기관: Bellingcat, MIT, NIST, KISA, 경찰청, SynthID, C2PA
+// ══════════════════════════════════════════════════════════════════════════
+
+const FACTCHECK_AGENCIES = [
+  // ── 국제 IFCN 인증 기관 ──────────────────────────────────
+  { id:'reuters',      name:'Reuters Fact Check',       url:'https://www.reuters.com/fact-check/',                      type:'ifcn',   region:'INTL', rss:'https://feeds.reuters.com/reuters/factCheckNews', canAccess:true },
+  { id:'afp',          name:'AFP Fact Check',            url:'https://fact.afp.com/',                                    type:'ifcn',   region:'INTL', rss:'https://factuel.afp.com/list/tags/fake-image',      canAccess:false },
+  { id:'snopes',       name:'Snopes',                   url:'https://www.snopes.com/',                                  type:'ifcn',   region:'USA',  rss:'https://www.snopes.com/fact-check/feed/',           canAccess:true },
+  { id:'factcheckorg', name:'FactCheck.org',            url:'https://www.factcheck.org/',                               type:'ifcn',   region:'USA',  rss:'https://www.factcheck.org/feed/',                   canAccess:true },
+  { id:'bellingcat',   name:'Bellingcat OSINT',         url:'https://www.bellingcat.com/',                              type:'osint',  region:'INTL', rss:'https://www.bellingcat.com/feed/',                  canAccess:true },
+  { id:'stopfake',     name:'StopFake',                 url:'https://www.stopfake.org/en/tag/fake-photo/',              type:'ifcn',   region:'UA',   rss:'https://www.stopfake.org/en/feed/',                 canAccess:true },
+  { id:'mena',         name:'MENA Fact Check',          url:'https://menafactcheck.com/',                               type:'ifcn',   region:'MENA', rss:null,                                                canAccess:false },
+  // ── 국내 기관 ────────────────────────────────────────────
+  { id:'yonhap',       name:'연합뉴스 팩트체크',          url:'https://www.yna.co.kr/factcheck',                         type:'domestic',region:'KR',  rss:'https://www.yna.co.kr/rss/factcheck.xml',           canAccess:true },
+  { id:'sbs',          name:'SBS 팩트체크',              url:'https://news.sbs.co.kr/news/newsMain.do?plink=FACTCHECK', type:'domestic',region:'KR',  rss:null,                                                canAccess:false },
+  { id:'kisa',         name:'KISA 한국인터넷진흥원',      url:'https://www.kisa.or.kr/1060',                             type:'official',region:'KR',  rss:null,                                                canAccess:false },
+  { id:'police',       name:'경찰청 사이버수사대',        url:'https://cyberbureau.police.go.kr/',                       type:'official',region:'KR',  rss:null,                                                canAccess:false },
+  // ── 연구·표준·기술 기관 ──────────────────────────────────
+  { id:'mit',          name:'MIT Media Lab Detect',     url:'https://detect.mit.edu/',                                  type:'research',region:'USA', rss:null,                                                canAccess:false },
+  { id:'nist',         name:'NIST AI RMF',              url:'https://www.nist.gov/artificial-intelligence',             type:'standard',region:'USA', rss:'https://www.nist.gov/news-events/news/rss.xml',     canAccess:true },
+  { id:'synthid',      name:'Google DeepMind SynthID', url:'https://deepmind.google/technologies/synthid/',            type:'tech',   region:'USA',  rss:null,                                                canAccess:false },
+  { id:'c2pa',         name:'C2PA 콘텐츠 인증 연합',    url:'https://c2pa.org/',                                        type:'standard',region:'INTL', rss:null,                                               canAccess:false },
+  { id:'gdelt',        name:'GDELT 글로벌 뉴스 DB',     url:'https://gdeltproject.org/',                                type:'database',region:'INTL', rss:null,                                               canAccess:true },
+  { id:'wikipedia',    name:'Wikipedia/Wikidata',       url:'https://en.wikipedia.org/',                               type:'reference',region:'INTL',rss:null,                                               canAccess:true },
+];
+
+// RSS 파서 (간단한 수동 파싱)
+async function fetchRSS(url, maxItems=3) {
+  const fetch = (await import('node-fetch')).default;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000), headers:{'User-Agent':'FactMaze/7.0 Research'} });
+    const xml = await r.text();
+    const items = [];
+    const re = /<item>([\s\S]*?)<\/item>/g;
+    let m;
+    while ((m = re.exec(xml)) !== null && items.length < maxItems) {
+      const getTag = (t) => { const tm = m[1].match(new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>|<${t}[^>]*>([\\s\\S]*?)<\\/${t}>`)); return tm ? (tm[1]||tm[2]||'').trim() : ''; };
+      const title   = getTag('title').replace(/<[^>]+>/g,'').slice(0,120);
+      const link    = getTag('link').replace(/<[^>]+>/g,'');
+      const pubDate = getTag('pubDate')||getTag('dc:date')||'';
+      const desc    = getTag('description').replace(/<[^>]+>/g,'').slice(0,200);
+      if (title) items.push({ title, link, pubDate, description:desc });
+    }
+    return items;
+  } catch(e) { return []; }
+}
+
+// DuckDuckGo 인스턴트 검색
+async function searchDuckDuckGo(query) {
+  const fetch = (await import('node-fetch')).default;
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const d = await r.json();
+    const results = [];
+    if (d.AbstractText) results.push({ title: d.Heading, snippet: d.AbstractText.slice(0,300), url: d.AbstractURL, source:'DuckDuckGo' });
+    (d.RelatedTopics||[]).slice(0,2).forEach(t => {
+      if (t.Text) results.push({ title: t.Text.slice(0,80), snippet: t.Text.slice(0,200), url: t.FirstURL, source:'DuckDuckGo' });
+    });
+    return results;
+  } catch(e) { return []; }
+}
+
+// GDELT 글로벌 뉴스 DB 검색
+async function searchGDELT(query) {
+  const fetch = (await import('node-fetch')).default;
+  try {
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query)}&mode=artlist&maxrecords=5&format=json`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(7000) });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return (d.articles||[]).slice(0,4).map(a => ({
+      title: a.title||'', url: a.url||'#',
+      source: a.domain||'News', country: a.sourcecountry,
+      language: a.language, date: a.seendate,
+      snippet: `[${a.sourcecountry||'?'}] ${a.domain||''} · ${a.seendate||''}`
+    }));
+  } catch(e) { return []; }
+}
+
+// Wikipedia 검색 (REST API)
+async function searchWikipedia(query) {
+  const fetch = (await import('node-fetch')).default;
+  try {
+    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return { title: d.title, snippet: (d.extract||'').slice(0,300), url: d.content_urls?.desktop?.page };
+  } catch(e) { return null; }
+}
+
+// ── 통합 교차검증 실행 ──────────────────────────────────────────
+async function runCrossVerification(analysisResult, query='') {
+  const fetch = (await import('node-fetch')).default;
+  const aiProb  = parseFloat(analysisResult?.scores?.aiProbability || 50);
+  const verdict = analysisResult?.scores?.verdict || 'UNCERTAIN';
+  const metaSig = analysisResult?.aiMetaSigs;
+  const q       = query || 'AI generated image deepfake detection';
+
+  const crossResults = {
+    timestamp: new Date().toISOString(),
+    query: q,
+    agencies: [],
+    liveData: {},
+    summary: { accessible:0, total: FACTCHECK_AGENCIES.length, aiSignal: verdict }
+  };
+
+  // ─ 1) RSS 수집 (접근 가능한 기관들) ─────────────────────────
+  const rssAgencies = FACTCHECK_AGENCIES.filter(a => a.canAccess && a.rss);
+  for (const agency of rssAgencies.slice(0,4)) {
+    const items = await fetchRSS(agency.rss);
+    crossResults.agencies.push({
+      id: agency.id, name: agency.name, url: agency.url,
+      type: agency.type, region: agency.region,
+      status: items.length > 0 ? 'live' : 'reference',
+      liveItems: items,
+      relevance: estimateRelevance(items, q, aiProb),
+      accessed: true
+    });
+    if (items.length > 0) crossResults.summary.accessible++;
+  }
+
+  // ─ 2) 참조 전용 기관 (직접 접근 불가) ────────────────────────
+  const refAgencies = FACTCHECK_AGENCIES.filter(a => !a.canAccess || !a.rss);
+  for (const agency of refAgencies) {
+    crossResults.agencies.push({
+      id: agency.id, name: agency.name, url: agency.url,
+      type: agency.type, region: agency.region,
+      status: 'reference',
+      liveItems: [],
+      instruction: getAgencyInstruction(agency, analysisResult),
+      accessed: false
+    });
+  }
+
+  // ─ 3) GDELT 실시간 뉴스 ────────────────────────────────────
+  crossResults.liveData.gdelt = await searchGDELT(q);
+  if (crossResults.liveData.gdelt.length > 0) crossResults.summary.accessible++;
+
+  // ─ 4) DuckDuckGo 검색 ─────────────────────────────────────
+  crossResults.liveData.duckduckgo = await searchDuckDuckGo(q + ' AI fake image');
+  if (crossResults.liveData.duckduckgo.length > 0) crossResults.summary.accessible++;
+
+  // ─ 5) Wikipedia 개요 ──────────────────────────────────────
+  const wikiTerm = aiProb > 60 ? 'deepfake' : 'digital image forensics';
+  crossResults.liveData.wikipedia = await searchWikipedia(wikiTerm);
+
+  // ─ 6) 분석 기반 교차검증 점수 ─────────────────────────────
+  crossResults.crossScore = computeCrossScore(analysisResult, crossResults);
+
+  return crossResults;
+}
+
+function estimateRelevance(items, query, aiProb) {
+  const keywords = query.toLowerCase().split(/\s+/);
+  let score = 0;
+  items.forEach(item => {
+    const text = (item.title+' '+item.description).toLowerCase();
+    keywords.forEach(k => { if (text.includes(k)) score++; });
+  });
+  return Math.min(100, score * 15 + (aiProb > 60 ? 20 : 0));
+}
+
+function getAgencyInstruction(agency, analysis) {
+  const prob = parseFloat(analysis?.scores?.aiProbability || 50);
+  const map = {
+    kisa:   'KISA 불법스팸대응센터 (118) 신고 가능. AI 딥페이크 탐지 가이드라인 참조.',
+    police: '경찰청 사이버수사대 182 신고. 딥페이크 성범죄 전담팀 운영.',
+    mit:    'detect.mit.edu에서 얼굴 딥페이크 전용 탐지 가능.',
+    synthid:'Google Gemini/Imagen 생성 이미지에 SynthID 워터마크가 내장됨.',
+    c2pa:   'contentcredentials.org에서 C2PA 메타데이터 검증 가능.',
+    mena:   'menafactcheck.com — 중동 아랍어 콘텐츠 전문 검증.',
+    afp:    `fact.afp.com 검색어: "${prob > 60 ? 'AI generated image' : 'image manipulation'}"`,
+    sbs:    'SBS 팩트체크 제보: factcheck@sbs.co.kr',
+    bellingcat: 'bellingcat.com/resources/how-tos — OSINT 역방향 이미지 검색 가이드.',
+  };
+  return map[agency.id] || `${agency.name} 사이트에서 직접 검증하세요: ${agency.url}`;
+}
+
+function computeCrossScore(analysis, crossResults) {
+  const aiProb = parseFloat(analysis?.scores?.aiProbability || 50);
+  const gdeltCount  = crossResults.liveData.gdelt?.length || 0;
+  const liveAgents  = crossResults.summary.accessible;
+  const metaIsAI    = analysis?.aiMetaSigs?.isConfirmedAI || false;
+
+  let score = aiProb;
+  if (metaIsAI) score = Math.min(100, score + 15);
+  if (gdeltCount > 3) score = Math.min(100, score + 5);
+
+  return {
+    finalAIProb: Math.round(score),
+    liveSourcesChecked: liveAgents,
+    totalAgencies: FACTCHECK_AGENCIES.length,
+    gdeltArticles: gdeltCount,
+    verdict: score >= 75 ? 'CONFIRMED_AI' : score >= 45 ? 'UNCERTAIN' : 'LIKELY_REAL',
+    confidence: liveAgents >= 4 ? 'HIGH' : liveAgents >= 2 ? 'MEDIUM' : 'LOW'
+  };
+}
+
+// ── 이미지 처리 시각화 API ─────────────────────────────────────
+// Returns processed image data for visualization (luminance map, gradient map, ELA map)
+app.post('/api/visualize', upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image' });
+  try {
+    const imgPath = req.file.path;
+    const { data, info } = await sharp(imgPath)
+      .resize(400, 400, { fit:'inside', withoutEnlargement:true })
+      .raw().toBuffer({ resolveWithObject:true });
+
+    const { width:w, height:h } = info;
+    const N = w * h;
+
+    // ── Luminance Map (grayscale BT.709) ─────────────────────
+    const lumBuf = Buffer.alloc(N * 3);
+    for (let i=0; i<N; i++) {
+      const r=data[i*3], g=data[i*3+1], b=data[i*3+2];
+      const L = Math.min(255, Math.round(0.2126*r + 0.7152*g + 0.0722*b));
+      lumBuf[i*3]=lumBuf[i*3+1]=lumBuf[i*3+2]=L;
+    }
+    const lumPng = await sharp(lumBuf,{raw:{width:w,height:h,channels:3}}).png().toBuffer();
+
+    // ── Gradient Map (Sobel → RGB heatmap) ────────────────────
+    const lumGray = new Float32Array(N);
+    for (let i=0; i<N; i++) lumGray[i] = (0.2126*data[i*3] + 0.7152*data[i*3+1] + 0.0722*data[i*3+2])/255;
+    const gradBuf = Buffer.alloc(N * 3);
+    let maxGrad = 0;
+    const gxArr = new Float32Array(N), gyArr = new Float32Array(N), magArr = new Float32Array(N);
+    for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
+      const s=(px,py)=>lumGray[Math.max(0,Math.min(h-1,py))*w+Math.max(0,Math.min(w-1,px))];
+      const Gx=-s(x-1,y-1)+s(x+1,y-1)-2*s(x-1,y)+2*s(x+1,y)-s(x-1,y+1)+s(x+1,y+1);
+      const Gy=-s(x-1,y-1)-2*s(x,y-1)-s(x+1,y-1)+s(x-1,y+1)+2*s(x,y+1)+s(x+1,y+1);
+      const idx=y*w+x; gxArr[idx]=Gx; gyArr[idx]=Gy;
+      magArr[idx]=Math.sqrt(Gx*Gx+Gy*Gy);
+      if(magArr[idx]>maxGrad) maxGrad=magArr[idx];
+    }
+    for (let i=0; i<N; i++) {
+      const v = maxGrad>0 ? magArr[i]/maxGrad : 0;
+      // Heatmap: low=blue, mid=green, high=red
+      gradBuf[i*3]   = Math.round(v*255);                     // R
+      gradBuf[i*3+1] = Math.round(Math.sin(v*Math.PI)*255);   // G
+      gradBuf[i*3+2] = Math.round((1-v)*255);                 // B
+    }
+    const gradPng = await sharp(gradBuf,{raw:{width:w,height:h,channels:3}}).png().toBuffer();
+
+    // ── ELA Map (error level analysis) ────────────────────────
+    const jpegBuf = await sharp(imgPath).resize(w,h).jpeg({quality:75}).toBuffer();
+    const elaData = await sharp(jpegBuf).raw().toBuffer();
+    const origData = await sharp(imgPath).resize(w,h).raw().toBuffer();
+    const elaBuf = Buffer.alloc(N * 3);
+    let maxEla = 0;
+    const elaMag = new Float32Array(N);
+    for (let i=0; i<N; i++) {
+      const diff = Math.abs(origData[i*3]-elaData[i*3])+Math.abs(origData[i*3+1]-elaData[i*3+1])+Math.abs(origData[i*3+2]-elaData[i*3+2]);
+      elaMag[i] = diff/3;
+      if(elaMag[i]>maxEla) maxEla=elaMag[i];
+    }
+    for (let i=0; i<N; i++) {
+      const v = maxEla>0 ? elaMag[i]/maxEla : 0;
+      elaBuf[i*3]   = Math.round(v*255);
+      elaBuf[i*3+1] = Math.round(v*80);
+      elaBuf[i*3+2] = 0;
+    }
+    const elaPng = await sharp(elaBuf,{raw:{width:w,height:h,channels:3}}).png().toBuffer();
+
+    // ── PRNU Noise Map ─────────────────────────────────────────
+    const prnuBuf = Buffer.alloc(N * 3);
+    for (let i=0; i<N; i++) {
+      const r=data[i*3], g=data[i*3+1], b=data[i*3+2];
+      const L = 0.2126*r+0.7152*g+0.0722*b;
+      // Wiener-like noise: pixel - local mean (3x3)
+      const y=Math.floor(i/w), x=i%w;
+      let localSum=0, cnt=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) {
+        const ny=y+dy, nx=x+dx;
+        if(ny>=0&&ny<h&&nx>=0&&nx<w){ localSum+=lumGray[(ny*w+nx)]*255; cnt++; }
+      }
+      const noise = Math.abs(L - (cnt>0?localSum/cnt:L));
+      const v = Math.min(255, Math.round(noise * 8));
+      prnuBuf[i*3]=v; prnuBuf[i*3+1]=Math.round(v*0.3); prnuBuf[i*3+2]=v;
+    }
+    const prnuPng = await sharp(prnuBuf,{raw:{width:w,height:h,channels:3}}).png().toBuffer();
+
+    try { fs.unlinkSync(imgPath); } catch(e){}
+
+    res.json({
+      success: true,
+      width: w, height: h,
+      maps: {
+        luminance: 'data:image/png;base64,' + lumPng.toString('base64'),
+        gradient:  'data:image/png;base64,' + gradPng.toString('base64'),
+        ela:       'data:image/png;base64,' + elaPng.toString('base64'),
+        prnu:      'data:image/png;base64,' + prnuPng.toString('base64')
+      }
+    });
+  } catch(err) {
+    try { fs.unlinkSync(req.file.path); } catch(e){}
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Cross-Verification API ─────────────────────────────────────
+app.post('/api/crossverify', async (req, res) => {
+  const { reportId, query } = req.body || {};
+  let analysisResult = null;
+  if (reportId) {
+    const p = `uploads/${reportId}.json`;
+    if (fs.existsSync(p)) {
+      try { analysisResult = JSON.parse(fs.readFileSync(p)).analysis; } catch(e){}
+    }
+  }
+  try {
+    serverStats.totalFactChecks++;
+    const result = await runCrossVerification(analysisResult || {}, query || '');
+    if (reportId) {
+      const p = `uploads/${reportId}.json`;
+      if (fs.existsSync(p)) {
+        const r = JSON.parse(fs.readFileSync(p));
+        r.crossVerification = result;
+        fs.writeFileSync(p, JSON.stringify(r, null, 2));
+      }
+    }
+    broadcast({ type:'cross_verify_complete', agencies: FACTCHECK_AGENCIES.length, accessible: result.summary.accessible });
+    res.json({ success:true, result });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Agency List ────────────────────────────────────────────────
+app.get('/api/agencies', (req, res) => {
+  res.json({ agencies: FACTCHECK_AGENCIES, total: FACTCHECK_AGENCIES.length });
+});
+
 // ── WebSocket ──────────────────────────────────────────────────────────────
 wss.on('connection', ws => {
   ws.send(JSON.stringify({

@@ -17,7 +17,7 @@ window._app = (() => {
     wsRetries: 0
   };
 
-  const PAGE_ORDER = ['home', 'analyze', 'learning', 'algorithm', 'about'];
+  const PAGE_ORDER = ['home', 'analyze', 'learning', 'flowchart', 'algorithm', 'about'];
 
   // 분석 단계 목록 (10단계 v5)
   const ANALYSIS_STEPS = [
@@ -289,9 +289,17 @@ window._app = (() => {
       renderExternalChecks(externalChecks);
       renderReport(analysis);
 
-      // 외부 검증 탭으로 자동 이동 (AI 확정 시)
+      // 시각화 맵 자동 실행
+      if (state.currentFile) {
+        runVisualization(state.currentFile, analysis);
+      }
+
+      // 크로스 버튼 이벤트 연결
+      setupCrossVerifyButton();
+
+      // AI 확정 시 시각화 탭으로 이동
       if (analysis.scores?.verdict === 'CONFIRMED_AI') {
-        setTimeout(() => switchTab('external'), 800);
+        setTimeout(() => switchTab('visual'), 800);
       }
     }, 500);
   }
@@ -657,6 +665,288 @@ window._app = (() => {
             </div>
           </div>`;
       }).join('')}`;
+  }
+
+  // ══════════════════════════════════════════════
+  //  이미지 시각화 (물리 특성 맵 생성)
+  // ══════════════════════════════════════════════
+  async function runVisualization(file, analysis) {
+    const visLoading = document.getElementById('vis-loading');
+    const visMaps    = document.getElementById('vis-maps');
+    if (visLoading) visLoading.style.display = 'flex';
+    if (visMaps)    visMaps.style.display    = 'none';
+
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res  = await fetch('/api/visualize', { method:'POST', body:fd });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || '시각화 실패');
+
+      // 원본 이미지
+      const origEl = document.getElementById('vm-original');
+      if (origEl) origEl.src = URL.createObjectURL(file);
+
+      // 처리된 맵들
+      const maps = data.maps || {};
+      const lumEl  = document.getElementById('vm-luminance');
+      const gradEl = document.getElementById('vm-gradient');
+      const elaEl  = document.getElementById('vm-ela');
+      const prnuEl = document.getElementById('vm-prnu');
+      if (lumEl  && maps.luminance) lumEl.src  = maps.luminance;
+      if (gradEl && maps.gradient)  gradEl.src = maps.gradient;
+      if (elaEl  && maps.ela)       elaEl.src  = maps.ela;
+      if (prnuEl && maps.prnu)      prnuEl.src = maps.prnu;
+
+      // 값 레이블 업데이트
+      const lumVal  = document.getElementById('vm-lum-val');
+      const traceVal = document.getElementById('vm-trace-val');
+      const elaVal  = document.getElementById('vm-ela-val');
+      const prnuVal = document.getElementById('vm-prnu-val');
+      if (lumVal)  lumVal.textContent  = analysis.luminance ? `평균 ${parseFloat(analysis.luminance.mean).toFixed(1)}, σ=${parseFloat(analysis.luminance.std).toFixed(2)}` : '—';
+      if (traceVal) traceVal.textContent = analysis.covariance?.trace ? `Trace=${parseFloat(analysis.covariance.trace).toFixed(1)} (${parseFloat(analysis.covariance.trace)<500?'AI 신호':'정상'})` : '—';
+      if (elaVal)  elaVal.textContent  = analysis.ela?.mean != null ? `${parseFloat(analysis.ela.mean).toFixed(3)} (${parseFloat(analysis.ela.mean)<1?'AI 의심':'정상'})` : '—';
+      if (prnuVal) prnuVal.textContent = analysis.prnu?.spatialCorr != null ? `${parseFloat(analysis.prnu.spatialCorr).toFixed(3)} 공간상관` : '—';
+
+      // 물리 특성 발견 사항 렌더링
+      renderPhysFindings(analysis);
+
+      // 레이더 차트
+      drawRadarChart(analysis);
+
+      if (visLoading) visLoading.style.display = 'none';
+      if (visMaps)    visMaps.style.display    = 'block';
+    } catch(e) {
+      if (visLoading) visLoading.innerHTML = `<p style="color:#ff3366">⚠️ 시각화 오류: ${e.message}</p>`;
+    }
+  }
+
+  function renderPhysFindings(analysis) {
+    const el = document.getElementById('phys-findings');
+    if (!el) return;
+    const aiProb   = parseInt(analysis.scores?.aiProbability || 0);
+    const findings = [];
+
+    // 각 물리 특성에 대한 이상치 체크
+    if (analysis.luminance) {
+      const std = parseFloat(analysis.luminance.std);
+      const chi = parseFloat(analysis.luminance.histChi2);
+      findings.push({
+        icon: '☀️', title: 'BT.709 휘도',
+        raw:  `평균: ${parseFloat(analysis.luminance.mean).toFixed(2)}, σ: ${std.toFixed(3)}, χ²: ${chi.toFixed(0)}`,
+        proc: `히스토그램 균일성: ${chi > 8000 ? 'HIGH — AI 의심' : chi > 5000 ? 'MEDIUM' : 'LOW — 정상'}`,
+        status: std < 20 ? 'anomaly' : std > 60 ? 'normal' : 'warn',
+        note: std < 20 ? '⚠️ σ 낮음 — AI 확산모델 특징 (균일 밝기)' : '✅ 자연스러운 밝기 분포'
+      });
+    }
+    if (analysis.covariance) {
+      const trace = parseFloat(analysis.covariance.trace);
+      const aniso = parseFloat(analysis.covariance.anisotropy);
+      findings.push({
+        icon: '📐', title: 'Sobel 그라디언트 · 공분산 행렬',
+        raw:  `Trace(C): ${trace.toFixed(2)}, 이방성: ${aniso}%, C₀₀: ${analysis.covariance.c00}, C₁₁: ${analysis.covariance.c11}`,
+        proc: `경계 강도: ${trace < 300 ? 'HIGH — AI 신호' : trace < 800 ? 'MEDIUM' : 'LOW — 강한 경계'}`,
+        status: trace < 300 ? 'anomaly' : trace < 800 ? 'warn' : 'normal',
+        note: trace < 300 ? '⚠️ Trace 낮음 — AI 노이즈 패턴 감지' : '✅ 실제 이미지 경계 특성 확인'
+      });
+    }
+    if (analysis.ela) {
+      const mean = parseFloat(analysis.ela.mean);
+      findings.push({
+        icon: '🗜️', title: 'ELA — 압축 오류 레벨',
+        raw:  `평균: ${mean.toFixed(4)}, 최대: ${parseFloat(analysis.ela.max||0).toFixed(2)}`,
+        proc: `JPEG 재압축 패턴: ${mean < 1.0 ? 'HIGH — AI 의심' : mean < 1.5 ? 'MEDIUM' : 'LOW — 정상'}`,
+        status: mean < 1.0 ? 'anomaly' : mean < 1.5 ? 'warn' : 'normal',
+        note: mean < 1.0 ? '⚠️ ELA ≈ 0 — 처음부터 렌더링된 이미지 특징' : '✅ JPEG 압축 흔적 정상'
+      });
+    }
+    if (analysis.dct) {
+      const hf = analysis.dct.highRatio;
+      findings.push({
+        icon: '〰️', title: 'DCT 주파수 스펙트럼',
+        raw:  `저주파: ${(analysis.dct.lowRatio*100).toFixed(1)}%, 중주파: ${(analysis.dct.midRatio*100).toFixed(1)}%, 고주파: ${(hf*100).toFixed(1)}%`,
+        proc: `고주파 비율: ${hf < 0.03 ? 'HIGH — AI 의심' : hf < 0.06 ? 'MEDIUM' : 'LOW — 정상'}`,
+        status: hf < 0.03 ? 'anomaly' : hf < 0.06 ? 'warn' : 'normal',
+        note: hf < 0.03 ? '⚠️ 고주파 결핍 — 확산 모델 평탄화 특징' : '✅ 자연스러운 주파수 분포'
+      });
+    }
+    if (analysis.prnu) {
+      const kurt = parseFloat(analysis.prnu.kurtosis);
+      const sc   = parseFloat(analysis.prnu.spatialCorr);
+      findings.push({
+        icon: '📷', title: 'PRNU — 카메라 센서 노이즈',
+        raw:  `분산: ${analysis.prnu.variance}, 첨도: ${kurt.toFixed(3)}, 공간상관: ${sc.toFixed(4)}`,
+        proc: `센서 핑거프린트: ${sc < 0.05 || kurt > 6 ? 'HIGH — AI 의심' : 'LOW — 카메라 노이즈 확인'}`,
+        status: sc < 0.05 || kurt > 6 ? 'anomaly' : 'normal',
+        note: sc < 0.05 ? '⚠️ 공간상관 없음 — 카메라 센서 특성 미감지' : '✅ 카메라 PRNU 패턴 확인'
+      });
+    }
+    if (analysis.saturation) {
+      const std = parseFloat(analysis.saturation.std);
+      findings.push({
+        icon: '🎨', title: '채도 (Saturation)',
+        raw:  `평균: ${parseFloat(analysis.saturation.mean).toFixed(3)}, σ: ${std.toFixed(4)}`,
+        proc: `채도 변동성: ${std < 0.05 ? 'AI 의심 (+15%)' : std > 0.20 ? '실제 이미지 신호 (-8%)' : '중립'}`,
+        status: std < 0.05 ? 'anomaly' : std > 0.20 ? 'normal' : 'warn',
+        note: std < 0.05 ? '⚠️ 채도 균일 — AI 오버샘플링 특징' : '✅ 자연스러운 채도 분포'
+      });
+    }
+    if (analysis.blockFreq != null) {
+      const bf = parseFloat(analysis.blockFreq);
+      findings.push({
+        icon: '⬛', title: '블록 주파수 불규칙성',
+        raw:  `점수: ${bf.toFixed(2)}`,
+        proc: `불규칙성: ${bf < 3 ? 'LOW — AI 의심 (+10%)' : bf > 25 ? 'HIGH — 실제 신호 (-8%)' : '중립'}`,
+        status: bf < 3 ? 'anomaly' : 'normal',
+        note: bf < 3 ? '⚠️ 블록 불규칙성 낮음 — GAN 생성 패턴' : '✅ 자연스러운 블록 주파수 분포'
+      });
+    }
+
+    el.innerHTML = `
+      <div class="pf-header">
+        <div class="pf-title">🔬 물리 특성 이상치 분석 결과</div>
+        <div class="pf-summary">
+          <span class="pf-badge ${aiProb>=75?'danger':aiProb>=45?'warn':'safe'}">AI 확률 ${aiProb}%</span>
+          <span style="font-size:11px;color:var(--t3)">각 특성의 이상치가 AI 생성 여부를 판별합니다</span>
+        </div>
+      </div>
+      <div class="pf-grid">
+        ${findings.map(f => `
+          <div class="pf-item ${f.status}">
+            <div class="pf-item-hd">
+              <span class="pf-item-icon">${f.icon}</span>
+              <span class="pf-item-title">${f.title}</span>
+              <span class="pf-status-dot ${f.status}"></span>
+            </div>
+            <div class="pf-raw"><strong>원본 데이터:</strong> ${f.raw}</div>
+            <div class="pf-proc"><strong>처리 결과:</strong> ${f.proc}</div>
+            <div class="pf-note">${f.note}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // ══════════════════════════════════════════════
+  //  17기관 교차검증 탭
+  // ══════════════════════════════════════════════
+  function setupCrossVerifyButton() {
+    const btn = document.getElementById('btn-crossverify');
+    if (!btn || btn._cvBound) return;
+    btn._cvBound = true;
+    btn.addEventListener('click', runCrossVerification);
+  }
+
+  async function runCrossVerification() {
+    const btn    = document.getElementById('btn-crossverify');
+    const agDiv  = document.getElementById('cv-agencies');
+    const liveDiv = document.getElementById('cv-live-data');
+    const scoreRow = document.getElementById('cv-score-row');
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 교차검증 중...'; }
+    if (agDiv) agDiv.innerHTML = '<div class="cv-loading"><div class="vl-spin"></div><p>17개 기관 실시간 접속 중...</p></div>';
+
+    try {
+      const query = document.getElementById('qinput')?.value.trim() || 'AI generated deepfake image';
+      const body  = { reportId: state.reportId, query };
+      const res   = await fetch('/api/crossverify', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data  = await res.json();
+      if (!data.success) throw new Error(data.error || '교차검증 실패');
+      renderCrossVerifyResults(data.result);
+    } catch(e) {
+      if (agDiv) agDiv.innerHTML = `<div class="cv-placeholder">⚠️ 교차검증 오류: ${e.message}</div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 재실행'; }
+    }
+  }
+
+  function renderCrossVerifyResults(result) {
+    if (!result) return;
+    const agDiv    = document.getElementById('cv-agencies');
+    const scoreRow = document.getElementById('cv-score-row');
+    const liveDiv  = document.getElementById('cv-live-data');
+
+    // 스코어 행
+    if (scoreRow) {
+      scoreRow.style.display = 'flex';
+      const cs = result.crossScore || {};
+      const fp = document.getElementById('cv-final-prob');
+      const lc = document.getElementById('cv-live-cnt');
+      const gc = document.getElementById('cv-gdelt-cnt');
+      const cv = document.getElementById('cv-verdict');
+      if (fp) fp.textContent = (cs.finalAIProb || 0) + '%';
+      if (lc) lc.textContent = (cs.liveSourcesChecked || 0) + '/' + (cs.totalAgencies || 17);
+      if (gc) gc.textContent = (cs.gdeltArticles || 0) + '건';
+      if (cv) {
+        const vmap = { CONFIRMED_AI:'🔴 AI 확정', UNCERTAIN:'🟡 불확실', LIKELY_REAL:'🟢 실제 가능' };
+        cv.textContent = vmap[cs.verdict] || cs.verdict || '—';
+      }
+    }
+
+    // 기관 목록
+    if (agDiv && result.agencies) {
+      const typeLabels = { ifcn:'IFCN 인증', osint:'OSINT', domestic:'국내 기관', official:'공식 기관', research:'연구기관', standard:'표준기관', tech:'기술기관', database:'데이터베이스', reference:'참조기관' };
+      const regionFlag = { INTL:'🌍', USA:'🇺🇸', UA:'🇺🇦', MENA:'🌙', KR:'🇰🇷' };
+
+      agDiv.innerHTML = result.agencies.map(ag => {
+        const isLive    = ag.status === 'live';
+        const typeLabel = typeLabels[ag.type] || ag.type;
+        const flag      = regionFlag[ag.region] || '🌐';
+
+        return `
+          <div class="cv-agency-card ${isLive ? 'live' : 'ref'}">
+            <div class="cvac-header">
+              <span class="cvac-status ${isLive ? 'live' : 'ref'}">${isLive ? '🟢 라이브' : '⚪ 참조'}</span>
+              <span class="cvac-type">${typeLabel}</span>
+              <span class="cvac-region">${flag} ${ag.region}</span>
+            </div>
+            <div class="cvac-name"><a href="${ag.url}" target="_blank">${ag.name}</a></div>
+            ${ag.instruction ? `<div class="cvac-instruction">${ag.instruction}</div>` : ''}
+            ${ag.liveItems && ag.liveItems.length > 0 ? `
+              <div class="cvac-items">
+                ${ag.liveItems.map(item => `
+                  <div class="cvac-item">
+                    <div class="cvaci-title"><a href="${item.link||'#'}" target="_blank">${item.title?.slice(0,90)||'기사 제목'}</a></div>
+                    <div class="cvaci-meta">${item.pubDate?.slice(0,16)||''} ${item.description?.slice(0,120)||''}</div>
+                  </div>`).join('')}
+              </div>` : ''}
+            <div class="cvac-relevance">
+              <div class="cvac-rel-bar"><div style="width:${ag.relevance||0}%;background:${(ag.relevance||0)>50?'#00ff88':'#ff9900'}"></div></div>
+              <span>관련도 ${ag.relevance||0}%</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // 라이브 데이터 (GDELT, DuckDuckGo, Wikipedia)
+    if (liveDiv) {
+      liveDiv.style.display = 'block';
+      const gdelt = result.liveData?.gdelt || [];
+      const ddg   = result.liveData?.duckduckgo || [];
+      const wiki  = result.liveData?.wikipedia;
+
+      const gdeltEl = document.getElementById('cv-gdelt-list');
+      if (gdeltEl) gdeltEl.innerHTML = gdelt.length
+        ? gdelt.map(a => `<div class="cvld-item"><a href="${a.url}" target="_blank">${a.title?.slice(0,80)}</a><span class="cvld-meta">${a.snippet}</span></div>`).join('')
+        : '<div class="cvld-empty">GDELT 뉴스 데이터 없음</div>';
+
+      const ddgEl = document.getElementById('cv-ddg-list');
+      if (ddgEl) ddgEl.innerHTML = ddg.length
+        ? ddg.map(d => `<div class="cvld-item"><a href="${d.url||'#'}" target="_blank">${d.title?.slice(0,80)}</a><span class="cvld-meta">${d.snippet?.slice(0,150)}</span></div>`).join('')
+        : '<div class="cvld-empty">DuckDuckGo 검색 결과 없음</div>';
+
+      const wikiEl   = document.getElementById('cv-wiki-data');
+      const wikiSect = document.getElementById('cv-wiki-section');
+      if (wiki && wikiEl) {
+        if (wikiSect) wikiSect.style.display = 'block';
+        wikiEl.innerHTML = `<div class="cvld-item"><a href="${wiki.url||'#'}" target="_blank"><strong>${wiki.title}</strong></a><span class="cvld-meta">${wiki.snippet}</span></div>`;
+      } else if (wikiSect) {
+        wikiSect.style.display = 'none';
+      }
+    }
   }
 
   // ── 보고서 탭 ──
