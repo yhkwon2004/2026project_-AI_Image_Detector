@@ -1,583 +1,1885 @@
-/* ═══════════════════════════════════════════════
-   FACT MAZE — Client Application Logic
-   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   FACT MAZE v6 — Application Logic
+   물리적 특성 + GAN 판별자 + 외부검증 + 전쟁DB + 빅데이터 학습
+   ═══════════════════════════════════════════════════════════════ */
 
-// ─── State ───
-let currentFile = null;
-let currentReportId = null;
-let currentAnalysis = null;
-let ws = null;
+window._app = (() => {
 
-// ─── Init ───
-document.addEventListener('DOMContentLoaded', () => {
-  initDragDrop();
-  initWebSocket();
-  // Pre-fill FC query from landing input
-  const fcQ = document.getElementById('fc-query');
-  const fcSearch = document.getElementById('fc-search-input');
-  if (fcQ && fcSearch) {
-    fcQ.addEventListener('input', () => { fcSearch.value = fcQ.value; });
-  }
-});
-
-// ─── WebSocket ───
-function initWebSocket() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${proto}//${location.host}`;
-  try {
-    ws = new WebSocket(wsUrl);
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.type === 'connected') {
-        console.log('WS connected:', data.message);
-      }
-    };
-    ws.onerror = () => {}; // silent fail
-  } catch (e) {}
-}
-
-// ─── Section Navigation ───
-function showSection(name) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`section-${name}`)?.classList.add('active');
-  document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// ─── Drag & Drop ───
-function initDragDrop() {
-  const zone = document.getElementById('dropzone');
-  if (!zone) return;
-
-  zone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    zone.classList.add('drag-over');
-  });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setFile(file);
-    } else {
-      showToast('이미지 파일만 업로드 가능합니다', 'error');
-    }
-  });
-  zone.addEventListener('click', (e) => {
-    if (!e.target.closest('.drop-preview') && !e.target.closest('.btn-clear')) {
-      document.getElementById('file-input')?.click();
-    }
-  });
-}
-
-function handleFileSelect(event) {
-  const file = event.target.files[0];
-  if (file) setFile(file);
-}
-
-function setFile(file) {
-  currentFile = file;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById('preview-img').src = e.target.result;
-    document.getElementById('preview-name').textContent = `${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
-    document.getElementById('drop-inner').style.display = 'none';
-    document.getElementById('drop-preview').style.display = 'block';
-    document.getElementById('btn-analyze').disabled = false;
+  // ── STATE ──
+  const state = {
+    currentPage: 'home',
+    pageHistory: ['home'],
+    currentFile: null,
+    reportId: null,
+    analysis: null,
+    externalChecks: null,
+    ws: null,
+    wsRetries: 0
   };
-  reader.readAsDataURL(file);
-  // Sync FC query
-  const q = document.getElementById('fc-query').value;
-  if (q) document.getElementById('fc-search-input').value = q;
-}
 
-function clearImage() {
-  currentFile = null;
-  document.getElementById('file-input').value = '';
-  document.getElementById('drop-inner').style.display = 'flex';
-  document.getElementById('drop-preview').style.display = 'none';
-  document.getElementById('btn-analyze').disabled = true;
-}
+  const PAGE_ORDER = ['home', 'analyze', 'learning', 'flowchart', 'algorithm', 'about'];
 
-// ─── Main Analysis ───
-async function startAnalysis() {
-  if (!currentFile) return;
+  // 분석 단계 목록 (10단계 v5)
+  const ANALYSIS_STEPS = [
+    'EXIF & AI 메타데이터 분석',
+    '휘도 추출 (BT.709) & 히스토그램',
+    'Sobel 그라디언트 & 공분산 행렬',
+    'ELA — 압축 오류 레벨 분석',
+    'DCT 주파수 스펙트럼',
+    'PRNU 카메라 센서 노이즈',
+    'GAN 아티팩트 탐지',
+    '확산 모델(Diffusion) 특성',
+    '채도 & 블록 주파수',
+    'GAN 판별자 최종 판정'
+  ];
 
-  const btn = document.getElementById('btn-analyze');
-  btn.querySelector('.btn-text').style.display = 'none';
-  btn.querySelector('.btn-loader').style.display = 'flex';
-  btn.disabled = true;
+  // ══════════════════════════════════════════════
+  //  INIT
+  // ══════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', () => {
+    initOverlay();
+    initNav();
+    initDrop();
+    initCursorGlow();
+    initHeroCanvas();
+    initCounters();
+    initScrollHint();
+    initScrollReveal();
+    initWebSocket();
+    initHeaderScroll();
+    initChatQuickReplies();
+    fetchServerStatus();
+    fetchGANStatus();
+    setInterval(fetchServerStatus, 10000);
+    setInterval(fetchGANStatus, 15000);
+    setInterval(pollMLStatus, 20000);
 
-  showToast('🔬 이미지 분석 중...', 'info');
+    const homePage = document.getElementById('page-home');
+    if (homePage) { homePage.style.display = 'block'; homePage.classList.add('active'); }
 
-  try {
-    const formData = new FormData();
-    formData.append('image', currentFile);
+    // 알고리즘 페이지 캔버스
+    setTimeout(initAlgorithmCanvases, 500);
+  });
 
-    const resp = await fetch('/api/analyze', { method: 'POST', body: formData });
-    if (!resp.ok) throw new Error(await resp.text());
-    const data = await resp.json();
-
-    currentReportId = data.reportId;
-    currentAnalysis = data.analysis;
-
-    // Show results
-    document.getElementById('result-empty').style.display = 'none';
-    document.getElementById('result-panel').style.display = 'block';
-
-    renderVerdictBanner(data.analysis);
-    renderMetrics(data.analysis);
-    renderReport(data.analysis, data.reportId);
-
-    showToast('✅ 분석 완료! 결과를 확인하세요', 'success');
-
-    // Auto-run fact check if query provided
-    const q = document.getElementById('fc-query').value.trim();
-    if (q) {
-      document.getElementById('fc-search-input').value = q;
-      setTimeout(() => runFactCheck(), 500);
-    }
-
-    // Add AI suspicion warning if needed
-    const prob = parseInt(data.analysis.scores.aiProbability);
-    if (prob >= 60) {
-      setTimeout(() => addChatMessage('assistant',
-        `⚠️ <strong>경고:</strong> 이 이미지는 AI 생성 가능성이 <strong>${prob}%</strong>로 높습니다. ` +
-        `Trace(C) = ${data.analysis.covariance.trace}, 방향 이방성 = ${data.analysis.covariance.anisotropy}. ` +
-        `팩트체크 탭에서 추가 검증을 진행하세요.`
-      ), 800);
-    } else if (prob >= 35) {
-      setTimeout(() => addChatMessage('assistant',
-        `⚡ 분석 결과 AI 확률이 <strong>${prob}%</strong>로 불확실합니다. ` +
-        `추가적인 소스 검증이 필요합니다. 팩트체크 탭을 이용해보세요.`
-      ), 800);
-    }
-
-  } catch (err) {
-    showToast('❌ 분석 실패: ' + err.message, 'error');
-    console.error(err);
-  } finally {
-    btn.querySelector('.btn-text').style.display = 'flex';
-    btn.querySelector('.btn-loader').style.display = 'none';
-    btn.disabled = false;
-  }
-}
-
-// ─── Render Verdict ───
-function renderVerdictBanner(analysis) {
-  const { verdict, aiProbability } = analysis.scores;
-  const banner = document.getElementById('verdict-banner');
-  const icon = document.getElementById('verdict-icon');
-  const title = document.getElementById('verdict-title');
-  const desc = document.getElementById('verdict-desc');
-  const scoreNum = document.getElementById('score-num');
-  const ringFill = document.getElementById('ring-fill');
-
-  banner.className = 'verdict-banner';
-  const prob = parseInt(aiProbability);
-
-  if (verdict === 'LIKELY_REAL') {
-    banner.classList.add('is-real');
-    icon.textContent = '✅';
-    title.textContent = '실제 사진으로 판단됨';
-    title.style.color = 'var(--green)';
-    desc.textContent = `AI 확률 ${prob}% — 자연스러운 그라디언트 패턴과 물리적 특성이 감지됨`;
-    ringFill.style.stroke = 'var(--green)';
-  } else if (verdict === 'UNCERTAIN') {
-    banner.classList.add('is-uncertain');
-    icon.textContent = '⚠️';
-    title.textContent = '불확실 — 추가 검증 필요';
-    title.style.color = 'var(--orange)';
-    desc.textContent = `AI 확률 ${prob}% — 일부 비자연적 패턴 감지. 다중 소스 교차 검증을 권장합니다`;
-    ringFill.style.stroke = 'var(--orange)';
-  } else {
-    banner.classList.add('is-ai');
-    icon.textContent = '🚨';
-    title.textContent = 'AI 생성 가능성 높음';
-    title.style.color = 'var(--red)';
-    desc.textContent = `AI 확률 ${prob}% — 비정상적 그라디언트 분포, 과도한 평탄화 패턴 감지`;
-    ringFill.style.stroke = 'var(--red)';
+  // ══════════════════════════════════════════════
+  //  PAGE TRANSITION
+  // ══════════════════════════════════════════════
+  function initOverlay() {
+    if (document.getElementById('page-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'page-transition-overlay';
+    overlay.id = 'page-overlay';
+    document.body.appendChild(overlay);
   }
 
-  // Animate score counter
-  animateCount(scoreNum, 0, prob, 1200);
-
-  // Animate ring
-  const circumference = 314;
-  const offset = circumference - (prob / 100) * circumference;
-  setTimeout(() => {
-    ringFill.style.strokeDashoffset = offset;
-  }, 100);
-}
-
-function animateCount(el, from, to, duration) {
-  const start = performance.now();
-  const update = (now) => {
-    const progress = Math.min((now - start) / duration, 1);
-    const ease = 1 - Math.pow(1 - progress, 3);
-    el.textContent = Math.round(from + (to - from) * ease);
-    if (progress < 1) requestAnimationFrame(update);
-  };
-  requestAnimationFrame(update);
-}
-
-// ─── Render Metrics ───
-function renderMetrics(analysis) {
-  const { covariance, gradient, saturation, luminance, scores } = analysis;
-
-  // Trace
-  const trace = parseFloat(covariance.trace);
-  const traceNorm = Math.min(100, trace / 50);
-  setMetric('trace', trace.toFixed(2), traceNorm, covariance.trace < 500 ? 'var(--red)' : 'var(--green)');
-
-  // Gradient mean
-  const gMean = parseFloat(gradient.mean);
-  const gNorm = Math.min(100, gMean / 3);
-  setMetric('grad', gradient.mean, gNorm, gMean < 1 ? 'var(--red)' : 'var(--green)');
-
-  // Anisotropy
-  const aniso = parseFloat(covariance.anisotropy);
-  setMetric('aniso', covariance.anisotropy, aniso, aniso > 60 ? 'var(--green)' : 'var(--red)');
-
-  // Saturation std
-  const satS = parseFloat(saturation.std);
-  const satNorm = Math.min(100, satS * 400);
-  setMetric('sat', saturation.std, satNorm, satS > 0.1 ? 'var(--green)' : 'var(--red)');
-
-  // High freq ratio
-  const hf = parseFloat(gradient.highFreqRatio);
-  setMetric('hf', gradient.highFreqRatio, hf, null);
-
-  // Luminance std
-  const lumS = parseFloat(luminance.std);
-  const lumNorm = Math.min(100, lumS / 1.5);
-  setMetric('lum', luminance.std, lumNorm, lumS > 50 ? 'var(--green)' : 'var(--red)');
-
-  // Matrix
-  document.getElementById('c00').textContent = covariance.C00;
-  document.getElementById('c01').textContent = covariance.C01;
-  document.getElementById('c10').textContent = covariance.C01; // symmetric
-  document.getElementById('c11').textContent = covariance.C11;
-  document.getElementById('lambda1').textContent = covariance.lambda1;
-  document.getElementById('lambda2').textContent = covariance.lambda2;
-  document.getElementById('trace-val').textContent = covariance.trace;
-}
-
-function setMetric(id, value, normPct, color) {
-  const valEl = document.getElementById(`m-${id}`);
-  const barEl = document.getElementById(`mb-${id}`);
-  if (valEl) valEl.textContent = value;
-  if (barEl) {
-    setTimeout(() => {
-      barEl.style.width = `${Math.min(100, Math.max(0, normPct))}%`;
-      if (color) barEl.style.background = color;
-    }, 200);
-  }
-}
-
-// ─── Tabs ───
-function switchTab(name) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
-  document.getElementById(`tab-${name}`)?.classList.add('active');
-  event.target.classList.add('active');
-}
-
-// ─── Fact Check ───
-function setFCQuery(q) {
-  document.getElementById('fc-search-input').value = q;
-  document.getElementById('fc-query').value = q;
-  runFactCheck();
-}
-
-async function runFactCheck() {
-  const query = document.getElementById('fc-search-input').value.trim();
-  if (!query) { showToast('검색어를 입력해주세요', 'warning'); return; }
-
-  const container = document.getElementById('fc-results');
-  container.innerHTML = `
-    <div class="fc-loading">
-      <div class="spinner"></div>
-      <span>실시간 뉴스 및 팩트체크 검색 중: "${query}"</span>
-    </div>`;
-
-  // Switch to fact-check tab
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-factcheck')?.classList.add('active');
-  document.querySelectorAll('.rtab')[1]?.classList.add('active');
-
-  try {
-    const resp = await fetch('/api/factcheck', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, reportId: currentReportId })
+  function initNav() {
+    document.querySelectorAll('[data-nav]').forEach(el => {
+      el.addEventListener('click', () => navigateTo(el.dataset.nav));
     });
-    const data = await resp.json();
-
-    renderFactCheckResults(data.results, query);
-  } catch (err) {
-    container.innerHTML = `<div class="fc-warn">❌ 팩트체크 검색 실패: ${err.message}</div>`;
-  }
-}
-
-function renderFactCheckResults(results, query) {
-  const container = document.getElementById('fc-results');
-
-  // Add AI warning for conflict-related queries
-  const isConflict = /ukraine|russia|iran|israel|war|분쟁|전쟁|우크라이나|러시아|이란|이스라엘/i.test(query);
-
-  let html = '';
-
-  if (isConflict) {
-    html += `
-      <div class="fc-warn">
-        ⚠️ <strong>분쟁 지역 관련 검색:</strong> 
-        전쟁·분쟁 관련 이미지는 허위정보 확산 위험이 높습니다. 
-        반드시 복수의 공신력 있는 언론사 소스를 교차 확인하세요.
-      </div>`;
   }
 
-  if (!results || results.length === 0) {
-    html += `
-      <div class="fc-empty">
-        "${query}"에 대한 검색 결과가 없습니다.<br/>
-        다른 키워드로 검색하거나 직접 신뢰할 수 있는 언론사 사이트를 확인하세요.
-      </div>`;
-  } else {
-    results.forEach((r, i) => {
-      const typeLabel = r.type === 'news' ? '📰 뉴스' : r.type === 'abstract' ? '📖 요약' : '🔗 관련';
-      html += `
-        <div class="fc-result-item" style="animation: fadeIn 0.3s ease ${i * 0.08}s both">
-          <div class="fc-result-header">
-            <a href="${r.url}" target="_blank" rel="noopener" class="fc-result-title">${escapeHtml(r.title || '제목 없음')}</a>
-            <span class="fc-result-source">${typeLabel} · ${escapeHtml(r.source)}</span>
-          </div>
-          ${r.snippet ? `<p class="fc-result-snippet">${escapeHtml(r.snippet)}</p>` : ''}
-          <div class="fc-result-meta">
-            ${r.country ? `<span>🌍 ${r.country}</span>` : ''}
-            ${r.language ? `<span>🗣 ${r.language}</span>` : ''}
-            <span>🔗 <a href="${r.url}" target="_blank" style="color:var(--cyan);font-size:11px">${r.url.substring(0,60)}${r.url.length > 60 ? '...' : ''}</a></span>
+  function navigateTo(pageName) {
+    if (pageName === state.currentPage) return;
+    const oldPage = document.getElementById(`page-${state.currentPage}`);
+    const newPage = document.getElementById(`page-${pageName}`);
+    if (!newPage) return;
+
+    const oldIdx = PAGE_ORDER.indexOf(state.currentPage);
+    const newIdx = PAGE_ORDER.indexOf(pageName);
+    const direction = newIdx > oldIdx ? 'slide-left' : 'slide-right';
+
+    const overlay = document.getElementById('page-overlay');
+    if (overlay) { overlay.classList.add('flash'); setTimeout(() => overlay.classList.remove('flash'), 300); }
+
+    if (oldPage) {
+      oldPage.classList.add(direction === 'slide-left' ? 'exit-left' : 'exit-right');
+      setTimeout(() => { oldPage.style.display = 'none'; oldPage.classList.remove('active','exit-left','exit-right'); }, 300);
+    }
+    state.currentPage = pageName;
+    state.pageHistory.push(pageName);
+    document.querySelectorAll('.nv').forEach(b => b.classList.toggle('active', b.dataset.nav === pageName));
+    newPage.style.display = 'block';
+    newPage.classList.add(direction === 'slide-left' ? 'enter-right' : 'enter-left');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        newPage.classList.add('active');
+        newPage.classList.remove('enter-right','enter-left');
+      });
+    });
+    window.scrollTo(0, 0);
+    if (pageName === 'algorithm') setTimeout(initAlgorithmCanvases, 200);
+    if (pageName === 'learning')  setTimeout(initLearningPage, 200);
+  }
+
+  // ══════════════════════════════════════════════
+  //  DROP ZONE
+  // ══════════════════════════════════════════════
+  function initDrop() {
+    const dz       = document.getElementById('dz');
+    const fileIn   = document.getElementById('file-in');
+    const btnChoose= document.getElementById('btn-choose');
+    const btnRm    = document.getElementById('btn-rm');
+
+    if (!dz) return;
+
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files[0]) handleFile(files[0]);
+    });
+    dz.addEventListener('click', e => {
+      if (!e.target.closest('#btn-rm') && !e.target.closest('#btn-choose') && !e.target.closest('#dz-preview')) {
+        fileIn.click();
+      }
+    });
+    if (btnChoose) btnChoose.addEventListener('click', e => { e.stopPropagation(); fileIn.click(); });
+    if (btnRm) btnRm.addEventListener('click', e => { e.stopPropagation(); clearFile(); });
+    if (fileIn) fileIn.addEventListener('change', () => { if (fileIn.files[0]) handleFile(fileIn.files[0]); });
+  }
+
+  function handleFile(file) {
+    const ALLOWED = ['image/jpeg','image/png','image/webp','image/gif'];
+    if (!ALLOWED.includes(file.type)) { showToast('❌ JPG·PNG·WebP·GIF 파일만 지원됩니다'); return; }
+    if (file.size > 30 * 1024 * 1024)  { showToast('❌ 파일 크기가 30MB를 초과합니다'); return; }
+    state.currentFile = file;
+
+    const idle    = document.getElementById('dz-idle');
+    const preview = document.getElementById('dz-preview');
+    const img     = document.getElementById('prev-img');
+    const name    = document.getElementById('prev-name');
+    const size    = document.getElementById('prev-size');
+
+    const reader = new FileReader();
+    reader.onload = e => { if (img) img.src = e.target.result; };
+    reader.readAsDataURL(file);
+
+    if (name) name.textContent = file.name;
+    if (size) size.textContent = (file.size / 1024).toFixed(1) + ' KB';
+    if (idle) idle.style.display = 'none';
+    if (preview) preview.style.display = 'flex';
+
+    const btn = document.getElementById('btn-analyze');
+    if (btn) btn.disabled = false;
+  }
+
+  function clearFile() {
+    state.currentFile = null;
+    const idle    = document.getElementById('dz-idle');
+    const preview = document.getElementById('dz-preview');
+    if (idle) idle.style.display = 'block';
+    if (preview) preview.style.display = 'none';
+    const fileIn = document.getElementById('file-in');
+    if (fileIn) fileIn.value = '';
+    const btn = document.getElementById('btn-analyze');
+    if (btn) btn.disabled = true;
+  }
+
+  // ══════════════════════════════════════════════
+  //  ANALYZE — 메인 분석 함수
+  // ══════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btn-analyze');
+    if (btn) btn.addEventListener('click', runAnalysis);
+  });
+
+  async function runAnalysis() {
+    if (!state.currentFile) return;
+    const baLoad = document.getElementById('ba-load');
+    const baTxt  = document.getElementById('ba-txt');
+    const btn    = document.getElementById('btn-analyze');
+    if (baLoad) baLoad.style.display = 'flex';
+    if (baTxt)  baTxt.style.display  = 'none';
+    if (btn)    btn.disabled          = true;
+
+    showProgress();
+
+    const fd = new FormData();
+    fd.append('image', state.currentFile);
+
+    try {
+      const res  = await fetch('/api/analyze', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || '분석 실패');
+      state.reportId       = data.reportId;
+      state.analysis       = data.analysis;
+      state.externalChecks = data.externalChecks || [];
+      showResults(data.analysis, data.externalChecks);
+
+      // 키워드가 있으면 자동 팩트체크
+      const qInput = document.getElementById('qinput');
+      if (qInput?.value.trim()) runWebVerify(qInput.value.trim());
+    } catch(err) {
+      showToast('❌ 분석 오류: ' + err.message);
+      hideProgress();
+    } finally {
+      if (baLoad) baLoad.style.display = 'none';
+      if (baTxt)  baTxt.style.display  = 'flex';
+      if (btn)    btn.disabled          = false;
+    }
+  }
+
+  // ── 진행 화면 표시 ──
+  function showProgress() {
+    document.getElementById('az-empty')?.style.setProperty('display','none');
+    document.getElementById('az-results')?.style.setProperty('display','none');
+    const prog = document.getElementById('az-progress');
+    if (prog) prog.style.display = 'block';
+
+    const stepsEl = document.getElementById('prog-steps');
+    if (stepsEl) {
+      stepsEl.innerHTML = ANALYSIS_STEPS.map((s, i) =>
+        `<div class="prog-step-item" id="psi-${i}">
+          <div class="prog-step-dot"></div>
+          <span>${i+1}. ${s}</span>
+        </div>`
+      ).join('');
+    }
+
+    let current = 0;
+    const interval = setInterval(() => {
+      if (current < ANALYSIS_STEPS.length) {
+        if (current > 0) {
+          const prev = document.getElementById(`psi-${current-1}`);
+          if (prev) prev.className = 'prog-step-item done';
+        }
+        const cur = document.getElementById(`psi-${current}`);
+        if (cur) cur.className = 'prog-step-item active';
+        const pct = Math.round((current / ANALYSIS_STEPS.length) * 90);
+        const fill = document.getElementById('pb-fill');
+        if (fill) fill.style.width = pct + '%';
+        const label = document.getElementById('prog-label');
+        if (label) label.textContent = `단계 ${current+1}/${ANALYSIS_STEPS.length}: ${ANALYSIS_STEPS[current]}...`;
+        current++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 280);
+    state._progressInterval = interval;
+  }
+
+  function hideProgress() {
+    if (state._progressInterval) clearInterval(state._progressInterval);
+    document.getElementById('az-progress')?.style.setProperty('display','none');
+  }
+
+  // ══════════════════════════════════════════════
+  //  RESULTS DISPLAY
+  // ══════════════════════════════════════════════
+  function showResults(analysis, externalChecks) {
+    hideProgress();
+    // 완료 진행 표시
+    const fill = document.getElementById('pb-fill');
+    if (fill) fill.style.width = '100%';
+    ANALYSIS_STEPS.forEach((_, i) => {
+      const el = document.getElementById(`psi-${i}`);
+      if (el) el.className = 'prog-step-item done';
+    });
+
+    setTimeout(() => {
+      document.getElementById('az-progress')?.style.setProperty('display','none');
+      const res = document.getElementById('az-results');
+      if (res) res.style.display = 'block';
+
+      renderVerdict(analysis);
+      renderSteps(analysis);
+      renderMetrics(analysis);
+      renderGANTab(analysis);
+      renderExternalChecks(externalChecks);
+      renderReport(analysis);
+
+      // 시각화 맵 자동 실행
+      if (state.currentFile) {
+        runVisualization(state.currentFile, analysis);
+      }
+
+      // 크로스 버튼 이벤트 연결
+      setupCrossVerifyButton();
+
+      // AI 확정 시 시각화 탭으로 이동
+      if (analysis.scores?.verdict === 'CONFIRMED_AI') {
+        setTimeout(() => switchTab('visual'), 800);
+      }
+    }, 500);
+  }
+
+  // ── 판정 배너 ──
+  function renderVerdict(analysis) {
+    const s = analysis.scores;
+    const prob = parseInt(s.aiProbability);
+    const verdict = s.verdict;
+
+    const vrdEl = document.getElementById('verdict');
+    if (vrdEl) {
+      vrdEl.className = 'verdict';
+      if (verdict === 'CONFIRMED_AI') vrdEl.classList.add('confirmed-ai');
+      else if (verdict === 'LIKELY_AI') vrdEl.classList.add('likely-ai');
+      else if (verdict === 'UNCERTAIN') vrdEl.classList.add('uncertain');
+      else vrdEl.classList.add('likely-real');
+    }
+
+    const icons = { CONFIRMED_AI: '🔴', LIKELY_AI: '🟠', UNCERTAIN: '🟡', LIKELY_REAL: '🟢' };
+    const titles = {
+      CONFIRMED_AI: 'AI 생성 확정',
+      LIKELY_AI: 'AI 생성 가능성 높음',
+      UNCERTAIN: '불확실 — 추가 검증 필요',
+      LIKELY_REAL: '실제 사진 가능성 높음'
+    };
+    const subs = {
+      CONFIRMED_AI: `메타데이터에 AI 도구 시그니처 확인됨 | AI 확률 ${prob}% | 신뢰도: ${s.confidence}`,
+      LIKELY_AI: `복수 물리 지표에서 AI 생성 패턴 탐지 | AI 확률 ${prob}% | GAN 판별자: ${s.ganProbability}%`,
+      UNCERTAIN: `복합적 신호 — 외부 검증 권장 | AI 확률 ${prob}% | 근거 ${s.totalIndicators}개`,
+      LIKELY_REAL: `자연 이미지 물리 특성 감지 | AI 확률 ${prob}% | GAN 판별자: ${s.ganProbability}%`
+    };
+
+    const icon  = document.getElementById('vrd-icon');
+    const title = document.getElementById('vrd-title');
+    const sub   = document.getElementById('vrd-sub');
+    if (icon)  icon.textContent  = icons[verdict]  || '❓';
+    if (title) title.textContent = titles[verdict] || verdict;
+    if (sub)   sub.textContent   = subs[verdict]   || '';
+
+    // AI 확정 배너 표시
+    if (analysis.aiMetaSigs?.isConfirmedAI && analysis.aiMetaSigs.detected?.length > 0) {
+      const detectedTools = analysis.aiMetaSigs.detected.map(d => d.tool).join(', ');
+      if (sub) sub.innerHTML = `<span class="meta-ai-badge">⚠️ ${detectedTools} 감지됨</span> 메타데이터에서 AI 도구 직접 확인`;
+    }
+
+    // 게이지 애니메이션
+    const gvNum = document.getElementById('gv-num');
+    const gaugeArc = document.getElementById('gauge-arc');
+    if (gvNum && gaugeArc) {
+      const circumference = 2 * Math.PI * 58; // r=58
+      let current = 0;
+      const interval = setInterval(() => {
+        current = Math.min(current + 2, prob);
+        gvNum.textContent = current;
+        const offset = circumference * (1 - current / 100);
+        gaugeArc.style.strokeDasharray = circumference;
+        gaugeArc.style.strokeDashoffset = offset;
+        const hue = 120 - (current * 1.2);
+        gaugeArc.style.stroke = `hsl(${hue}, 90%, 55%)`;
+        if (current >= prob) clearInterval(interval);
+      }, 20);
+    }
+  }
+
+  // ── 10단계 분석 목록 ──
+  function renderSteps(analysis) {
+    const el = document.getElementById('step-list');
+    if (!el) return;
+    el.innerHTML = (analysis.steps || []).map(s => {
+      const signalClass = s.aiSignal || 'LOW';
+      const signalLabel = { HIGH: '🚨 HIGH', MEDIUM: '⚠️ MED', LOW: '✅ LOW' }[signalClass] || '';
+      return `
+        <div class="step-item">
+          <div class="si-num">STEP ${s.step}</div>
+          <div class="si-content">
+            <div class="si-name">
+              ${s.name}
+              <span class="step-signal ${signalClass}">${signalLabel}</span>
+            </div>
+            <div class="si-detail">${s.detail}</div>
+            <div class="si-src">📚 ${s.source}</div>
           </div>
         </div>`;
+    }).join('');
+
+    // 판정 근거
+    const reasonsEl = document.getElementById('reasons-box');
+    if (reasonsEl) {
+      const reasons = analysis.scores?.reasons || [];
+      if (reasons.length > 0) {
+        reasonsEl.innerHTML = `
+          <div class="rb-title">🔍 판정 근거 (${reasons.length}개 지표)</div>
+          ${reasons.map(r => `<div class="rb-item">${r}</div>`).join('')}`;
+      }
+    }
+  }
+
+  // ── 물리 지표 탭 ──
+  function renderMetrics(analysis) {
+    const el = document.getElementById('metrics-g');
+    if (!el) return;
+
+    const metrics = [
+      { label: 'AI 확률', val: analysis.scores?.aiProbability + '%', color: getScoreColor(parseInt(analysis.scores?.aiProbability)), bar: parseInt(analysis.scores?.aiProbability) },
+      { label: 'GAN 판별자', val: analysis.scores?.ganProbability + '%', color: getScoreColor(parseInt(analysis.scores?.ganProbability)), bar: parseInt(analysis.scores?.ganProbability) },
+      { label: 'Trace(C)', val: analysis.covariance?.trace, color: parseFloat(analysis.covariance?.trace) < 500 ? '#ff3366' : parseFloat(analysis.covariance?.trace) < 1200 ? '#ff9900' : '#00ff88', bar: Math.min(100, parseFloat(analysis.covariance?.trace) / 50) },
+      { label: '이방성', val: analysis.covariance?.anisotropy, color: analysis.covariance?.anisotropy, bar: parseFloat(analysis.covariance?.anisotropy) },
+      { label: 'ELA 평균', val: analysis.ela?.mean?.toFixed ? analysis.ela.mean.toFixed(3) : analysis.ela?.mean, color: parseFloat(analysis.ela?.mean) < 1 ? '#ff3366' : '#00ff88', bar: Math.min(100, parseFloat(analysis.ela?.mean) * 20) },
+      { label: 'DCT 고주파', val: analysis.dct ? (analysis.dct.highRatio * 100).toFixed(1) + '%' : '—', color: analysis.dct?.highRatio < 0.05 ? '#ff3366' : '#00ff88', bar: analysis.dct ? analysis.dct.highRatio * 100 * 5 : 50 },
+      { label: 'PRNU 첨도', val: analysis.prnu?.kurtosis, color: parseFloat(analysis.prnu?.kurtosis) > 6 ? '#ff9900' : '#00ff88', bar: Math.min(100, parseFloat(analysis.prnu?.kurtosis) * 10) },
+      { label: '채도 σ', val: analysis.saturation?.std, color: parseFloat(analysis.saturation?.std) < 0.06 ? '#ff3366' : '#00ff88', bar: parseFloat(analysis.saturation?.std) * 500 },
+      { label: '블록 불규칙', val: analysis.blockFreq, color: parseFloat(analysis.blockFreq) < 5 ? '#ff9900' : '#00ff88', bar: Math.min(100, parseFloat(analysis.blockFreq) * 3) },
+      { label: '히스토그램 χ²', val: analysis.luminance?.histChi2, color: parseFloat(analysis.luminance?.histChi2) > 5000 ? '#ff9900' : '#00ff88', bar: Math.min(100, parseFloat(analysis.luminance?.histChi2) / 100) },
+      { label: '밝기 Mean', val: analysis.luminance?.mean, color: '#00d4ff', bar: parseFloat(analysis.luminance?.mean) / 2.55 },
+      { label: '밝기 σ', val: analysis.luminance?.std, color: '#7b2fff', bar: parseFloat(analysis.luminance?.std) }
+    ];
+
+    el.innerHTML = metrics.map(m => `
+      <div class="metric-card">
+        <div class="mc-label">${m.label}</div>
+        <div class="mc-val" style="color:${m.color || '#00d4ff'}">${m.val ?? '—'}</div>
+        <div class="mc-track">
+          <div class="mc-fill" style="width:${Math.max(0,Math.min(100,m.bar||0)).toFixed(1)}%;background:${m.color||'#00d4ff'}"></div>
+        </div>
+      </div>`).join('');
+
+    // 공분산 행렬 시각화
+    const matEl = document.getElementById('matrix-vis');
+    if (matEl && analysis.covariance) {
+      const c = analysis.covariance;
+      matEl.innerHTML = `
+        <div class="mv-title">공분산 행렬 C = (1/N)·MᵀM</div>
+        <div class="mv-matrix">
+          <div class="mv-row">
+            <div class="mv-cell" title="수평 그라디언트 분산">C₀₀ = ${c.C00}</div>
+            <div class="mv-cell" title="교차 공분산">C₀₁ = ${c.C01}</div>
+          </div>
+          <div class="mv-row">
+            <div class="mv-cell" title="교차 공분산">C₁₀ = ${c.C01}</div>
+            <div class="mv-cell" title="수직 그라디언트 분산">C₁₁ = ${c.C11}</div>
+          </div>
+        </div>
+        <div class="mv-eigen">
+          <span>λ₁ = <strong>${c.lambda1}</strong></span>
+          <span>λ₂ = <strong>${c.lambda2}</strong></span>
+          <span>Trace = <strong>${c.trace}</strong></span>
+          <span>이방성 = <strong>${c.anisotropy}</strong></span>
+        </div>`;
+    }
+
+    // 레이더 차트
+    drawRadarChart(analysis);
+  }
+
+  // ── 레이더 차트 ──
+  function drawRadarChart(analysis) {
+    const canvas = document.getElementById('radar-chart');
+    if (!canvas) return;
+    const ctx    = canvas.getContext('2d');
+    const cx = 150, cy = 150, r = 110;
+
+    const indicators = [
+      { label: 'Trace', val: Math.min(1, 1 - parseFloat(analysis.covariance?.trace || 2500) / 5000) },
+      { label: '이방성', val: Math.min(1, 1 - parseFloat(analysis.covariance?.anisotropy || '50') / 100) },
+      { label: 'ELA', val: Math.min(1, 1 - parseFloat(analysis.ela?.mean || 3) / 5) },
+      { label: 'DCT', val: Math.min(1, 1 - (analysis.dct?.highRatio || 0.1) * 10) },
+      { label: 'PRNU', val: Math.min(1, parseFloat(analysis.prnu?.kurtosis || 3) / 10) },
+      { label: '채도', val: Math.min(1, 1 - parseFloat(analysis.saturation?.std || 0.1) * 5) },
+      { label: 'GAN', val: analysis.ganArtifacts?.isCheckerboard ? 0.9 : 0.2 },
+      { label: '확산', val: (analysis.diffusion?.isLowColorDiversity ? 0.5 : 0) + (analysis.diffusion?.isUniformTexture ? 0.5 : 0) }
+    ];
+    const n = indicators.length;
+
+    ctx.clearRect(0, 0, 300, 300);
+
+    // 배경 그리드
+    for (let ring = 1; ring <= 5; ring++) {
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+        const x = cx + r * (ring / 5) * Math.cos(angle);
+        const y = cy + r * (ring / 5) * Math.sin(angle);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255,255,255,.08)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // 축선
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+      ctx.strokeStyle = 'rgba(255,255,255,.12)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // 레이블
+      const lx = cx + (r + 18) * Math.cos(angle);
+      const ly = cy + (r + 18) * Math.sin(angle);
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      ctx.font = '10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(indicators[i].label, lx, ly);
+    }
+
+    // AI 신호 영역
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const val   = Math.max(0, Math.min(1, indicators[i].val));
+      const x = cx + r * val * Math.cos(angle);
+      const y = cy + r * val * Math.sin(angle);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const avgVal = indicators.reduce((a, b) => a + b.val, 0) / n;
+    const hue    = 120 - avgVal * 120;
+    ctx.fillStyle   = `hsla(${hue},80%,55%,.25)`;
+    ctx.strokeStyle = `hsla(${hue},80%,65%,.8)`;
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+
+    // 점
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const val   = Math.max(0, Math.min(1, indicators[i].val));
+      ctx.beginPath();
+      ctx.arc(cx + r * val * Math.cos(angle), cy + r * val * Math.sin(angle), 4, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue},80%,65%,1)`;
+      ctx.fill();
+    }
+  }
+
+  // ── GAN 학습 탭 ──
+  function renderGANTab(analysis) {
+    const ganLearning = analysis.ganLearning;
+    if (!ganLearning) return;
+
+    const rounds   = document.getElementById('gan-rounds');
+    const acc      = document.getElementById('gan-acc');
+    const lrVal    = document.getElementById('gan-lr-val');
+    const discProb = document.getElementById('gan-disc-prob');
+
+    if (rounds)   rounds.textContent   = ganLearning.lastRound?.roundsCompleted || 0;
+    if (acc)      acc.textContent      = ganLearning.lastRound?.accuracy || '—';
+    if (lrVal)    lrVal.textContent    = ganLearning.lastRound?.learningRate || '—';
+    if (discProb) discProb.textContent = ganLearning.discriminatorProb || '—';
+
+    // 가중치 시각화
+    const wEl = document.getElementById('gan-weights-vis');
+    if (wEl && ganLearning.weights) {
+      const w = ganLearning.weights;
+      const entries = [
+        { key: 'traceWeight',       label: 'Trace(C)       ', color: '#ff3366' },
+        { key: 'anisoWeight',       label: '이방성          ', color: '#ff6633' },
+        { key: 'gradStdWeight',     label: 'Grad σ         ', color: '#ff9900' },
+        { key: 'elaWeight',         label: 'ELA            ', color: '#ffcc00' },
+        { key: 'dctHighWeight',     label: 'DCT 고주파      ', color: '#00d4ff' },
+        { key: 'prnu_kurtWeight',   label: 'PRNU 첨도       ', color: '#7b2fff' },
+        { key: 'ganArtifactWeight', label: 'GAN 아티팩트    ', color: '#ff3399' },
+        { key: 'diffusionWeight',   label: '확산 모델       ', color: '#33ccff' },
+        { key: 'metadataWeight',    label: '메타데이터      ', color: '#00ff88' }
+      ];
+      wEl.innerHTML = entries.map(e => {
+        const val = parseFloat(w[e.key] || 0);
+        const pct = (val * 100).toFixed(1);
+        return `
+          <div class="gwv-row">
+            <div class="gwv-label">${e.label}</div>
+            <div class="gwv-track">
+              <div class="gwv-fill" style="width:${pct}%;background:${e.color}"></div>
+            </div>
+            <div class="gwv-val" style="color:${e.color}">${val.toFixed(3)}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // 사이드바 GAN 패널 업데이트
+    const gspRounds = document.getElementById('gsp-rounds');
+    const gspAcc    = document.getElementById('gsp-acc');
+    const gspLr     = document.getElementById('gsp-lr');
+    const gspW      = document.getElementById('gsp-weights');
+    if (gspRounds) gspRounds.textContent = ganLearning.lastRound?.roundsCompleted || 0;
+    if (gspAcc)    gspAcc.textContent    = ganLearning.lastRound?.accuracy || '—';
+    if (gspLr)     gspLr.textContent     = parseFloat(ganLearning.lastRound?.learningRate || 0.05).toFixed(4);
+
+    if (gspW && ganLearning.weights) {
+      const topWeights = [
+        { key: 'metadataWeight',    label: 'Meta' },
+        { key: 'traceWeight',       label: 'Trace' },
+        { key: 'diffusionWeight',   label: 'Diffusion' },
+        { key: 'ganArtifactWeight', label: 'GAN' }
+      ];
+      gspW.innerHTML = topWeights.map(e => {
+        const val = parseFloat(ganLearning.weights[e.key] || 0);
+        return `
+          <div class="gsp-weight-bar">
+            <div class="gsp-w-label">${e.label}</div>
+            <div class="gsp-w-track"><div class="gsp-w-fill" style="width:${(val*100).toFixed(0)}%"></div></div>
+            <div class="gsp-w-val">${val.toFixed(3)}</div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // ── 외부 검증 사이트 탭 ──
+  function renderExternalChecks(checks) {
+    const el = document.getElementById('ext-results');
+    if (!el) return;
+
+    if (!checks || checks.length === 0) {
+      el.innerHTML = '<div class="ext-placeholder">외부 검증 사이트 정보를 불러오는 중...</div>';
+      return;
+    }
+
+    const icons = {
+      'Hive AI Moderation':          '🐝',
+      'FotoForensics ELA':           '🔬',
+      'Illuminarty':                  '💡',
+      'AI or Not':                    '🤖',
+      'Google SynthID Checker':      '🌐',
+      'Content Credentials Verify':  '🔏',
+      'Hugging Face — AI Image Detector': '🤗',
+      'DuckDuckGo 역방향 이미지 검색': '🦆',
+      'TinEye 역방향 검색':           '🔍',
+      'GDELT 전지구 미디어 DB':       '📰'
+    };
+
+    const aiProb    = parseInt(state.analysis?.scores?.aiProbability || 0);
+    const isConfirmed = state.analysis?.scores?.verdict === 'CONFIRMED_AI';
+
+    el.innerHTML = `
+      <div style="margin-bottom:14px;padding:10px 14px;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2);border-radius:10px;font-size:12px;color:var(--c1)">
+        💡 <strong>내부 분석 결과:</strong> AI 확률 ${aiProb}% ${isConfirmed ? '🔴 <strong>AI 생성 확정</strong> — 메타데이터 시그니처 발견' : ''}<br/>
+        아래 전문 사이트에서 교차 검증을 통해 정확도를 높이세요.
+      </div>
+      ${checks.map(c => {
+        const icon = icons[c.service] || '🔗';
+        const isAI = isConfirmed;
+        return `
+          <div class="ext-card ${isAI ? 'confirmed-ai' : ''}">
+            <div class="ext-card-icon">${icon}</div>
+            <div class="ext-card-body">
+              <div class="ext-card-name">${c.service}</div>
+              <div class="ext-card-desc">${c.description}</div>
+              ${c.instruction ? `<div class="ext-card-note">${c.instruction}</div>` : ''}
+              ${c.note ? `<div class="ext-card-note ${isAI ? 'ai-confirmed' : ''}">${c.note}</div>` : ''}
+              ${c.relatedNews ? `
+                <div style="margin-top:6px">
+                  ${c.relatedNews.slice(0,2).map(n => `<div style="font-size:10px;color:var(--t3);margin-top:3px">📰 <a href="${n.url}" target="_blank" style="color:var(--c1)">${n.title?.slice(0,80)}</a></div>`).join('')}
+                </div>` : ''}
+              <a href="${c.url}" target="_blank" class="ext-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                사이트 열기
+              </a>
+            </div>
+          </div>`;
+      }).join('')}`;
+  }
+
+  // ══════════════════════════════════════════════
+  //  이미지 시각화 (물리 특성 맵 생성)
+  // ══════════════════════════════════════════════
+  async function runVisualization(file, analysis) {
+    const visLoading = document.getElementById('vis-loading');
+    const visMaps    = document.getElementById('vis-maps');
+    if (visLoading) visLoading.style.display = 'flex';
+    if (visMaps)    visMaps.style.display    = 'none';
+
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res  = await fetch('/api/visualize', { method:'POST', body:fd });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || '시각화 실패');
+
+      // 원본 이미지
+      const origEl = document.getElementById('vm-original');
+      if (origEl) origEl.src = URL.createObjectURL(file);
+
+      // 처리된 맵들
+      const maps = data.maps || {};
+      const lumEl  = document.getElementById('vm-luminance');
+      const gradEl = document.getElementById('vm-gradient');
+      const elaEl  = document.getElementById('vm-ela');
+      const prnuEl = document.getElementById('vm-prnu');
+      if (lumEl  && maps.luminance) lumEl.src  = maps.luminance;
+      if (gradEl && maps.gradient)  gradEl.src = maps.gradient;
+      if (elaEl  && maps.ela)       elaEl.src  = maps.ela;
+      if (prnuEl && maps.prnu)      prnuEl.src = maps.prnu;
+
+      // 값 레이블 업데이트
+      const lumVal  = document.getElementById('vm-lum-val');
+      const traceVal = document.getElementById('vm-trace-val');
+      const elaVal  = document.getElementById('vm-ela-val');
+      const prnuVal = document.getElementById('vm-prnu-val');
+      if (lumVal)  lumVal.textContent  = analysis.luminance ? `평균 ${parseFloat(analysis.luminance.mean).toFixed(1)}, σ=${parseFloat(analysis.luminance.std).toFixed(2)}` : '—';
+      if (traceVal) traceVal.textContent = analysis.covariance?.trace ? `Trace=${parseFloat(analysis.covariance.trace).toFixed(1)} (${parseFloat(analysis.covariance.trace)<500?'AI 신호':'정상'})` : '—';
+      if (elaVal)  elaVal.textContent  = analysis.ela?.mean != null ? `${parseFloat(analysis.ela.mean).toFixed(3)} (${parseFloat(analysis.ela.mean)<1?'AI 의심':'정상'})` : '—';
+      if (prnuVal) prnuVal.textContent = analysis.prnu?.spatialCorr != null ? `${parseFloat(analysis.prnu.spatialCorr).toFixed(3)} 공간상관` : '—';
+
+      // 물리 특성 발견 사항 렌더링
+      renderPhysFindings(analysis);
+
+      // 레이더 차트
+      drawRadarChart(analysis);
+
+      if (visLoading) visLoading.style.display = 'none';
+      if (visMaps)    visMaps.style.display    = 'block';
+    } catch(e) {
+      if (visLoading) visLoading.innerHTML = `<p style="color:#ff3366">⚠️ 시각화 오류: ${e.message}</p>`;
+    }
+  }
+
+  function renderPhysFindings(analysis) {
+    const el = document.getElementById('phys-findings');
+    if (!el) return;
+    const aiProb   = parseInt(analysis.scores?.aiProbability || 0);
+    const findings = [];
+
+    // 각 물리 특성에 대한 이상치 체크
+    if (analysis.luminance) {
+      const std = parseFloat(analysis.luminance.std);
+      const chi = parseFloat(analysis.luminance.histChi2);
+      findings.push({
+        icon: '☀️', title: 'BT.709 휘도',
+        raw:  `평균: ${parseFloat(analysis.luminance.mean).toFixed(2)}, σ: ${std.toFixed(3)}, χ²: ${chi.toFixed(0)}`,
+        proc: `히스토그램 균일성: ${chi > 8000 ? 'HIGH — AI 의심' : chi > 5000 ? 'MEDIUM' : 'LOW — 정상'}`,
+        status: std < 20 ? 'anomaly' : std > 60 ? 'normal' : 'warn',
+        note: std < 20 ? '⚠️ σ 낮음 — AI 확산모델 특징 (균일 밝기)' : '✅ 자연스러운 밝기 분포'
+      });
+    }
+    if (analysis.covariance) {
+      const trace = parseFloat(analysis.covariance.trace);
+      const aniso = parseFloat(analysis.covariance.anisotropy);
+      findings.push({
+        icon: '📐', title: 'Sobel 그라디언트 · 공분산 행렬',
+        raw:  `Trace(C): ${trace.toFixed(2)}, 이방성: ${aniso}%, C₀₀: ${analysis.covariance.c00}, C₁₁: ${analysis.covariance.c11}`,
+        proc: `경계 강도: ${trace < 300 ? 'HIGH — AI 신호' : trace < 800 ? 'MEDIUM' : 'LOW — 강한 경계'}`,
+        status: trace < 300 ? 'anomaly' : trace < 800 ? 'warn' : 'normal',
+        note: trace < 300 ? '⚠️ Trace 낮음 — AI 노이즈 패턴 감지' : '✅ 실제 이미지 경계 특성 확인'
+      });
+    }
+    if (analysis.ela) {
+      const mean = parseFloat(analysis.ela.mean);
+      findings.push({
+        icon: '🗜️', title: 'ELA — 압축 오류 레벨',
+        raw:  `평균: ${mean.toFixed(4)}, 최대: ${parseFloat(analysis.ela.max||0).toFixed(2)}`,
+        proc: `JPEG 재압축 패턴: ${mean < 1.0 ? 'HIGH — AI 의심' : mean < 1.5 ? 'MEDIUM' : 'LOW — 정상'}`,
+        status: mean < 1.0 ? 'anomaly' : mean < 1.5 ? 'warn' : 'normal',
+        note: mean < 1.0 ? '⚠️ ELA ≈ 0 — 처음부터 렌더링된 이미지 특징' : '✅ JPEG 압축 흔적 정상'
+      });
+    }
+    if (analysis.dct) {
+      const hf = analysis.dct.highRatio;
+      findings.push({
+        icon: '〰️', title: 'DCT 주파수 스펙트럼',
+        raw:  `저주파: ${(analysis.dct.lowRatio*100).toFixed(1)}%, 중주파: ${(analysis.dct.midRatio*100).toFixed(1)}%, 고주파: ${(hf*100).toFixed(1)}%`,
+        proc: `고주파 비율: ${hf < 0.03 ? 'HIGH — AI 의심' : hf < 0.06 ? 'MEDIUM' : 'LOW — 정상'}`,
+        status: hf < 0.03 ? 'anomaly' : hf < 0.06 ? 'warn' : 'normal',
+        note: hf < 0.03 ? '⚠️ 고주파 결핍 — 확산 모델 평탄화 특징' : '✅ 자연스러운 주파수 분포'
+      });
+    }
+    if (analysis.prnu) {
+      const kurt = parseFloat(analysis.prnu.kurtosis);
+      const sc   = parseFloat(analysis.prnu.spatialCorr);
+      findings.push({
+        icon: '📷', title: 'PRNU — 카메라 센서 노이즈',
+        raw:  `분산: ${analysis.prnu.variance}, 첨도: ${kurt.toFixed(3)}, 공간상관: ${sc.toFixed(4)}`,
+        proc: `센서 핑거프린트: ${sc < 0.05 || kurt > 6 ? 'HIGH — AI 의심' : 'LOW — 카메라 노이즈 확인'}`,
+        status: sc < 0.05 || kurt > 6 ? 'anomaly' : 'normal',
+        note: sc < 0.05 ? '⚠️ 공간상관 없음 — 카메라 센서 특성 미감지' : '✅ 카메라 PRNU 패턴 확인'
+      });
+    }
+    if (analysis.saturation) {
+      const std = parseFloat(analysis.saturation.std);
+      findings.push({
+        icon: '🎨', title: '채도 (Saturation)',
+        raw:  `평균: ${parseFloat(analysis.saturation.mean).toFixed(3)}, σ: ${std.toFixed(4)}`,
+        proc: `채도 변동성: ${std < 0.05 ? 'AI 의심 (+15%)' : std > 0.20 ? '실제 이미지 신호 (-8%)' : '중립'}`,
+        status: std < 0.05 ? 'anomaly' : std > 0.20 ? 'normal' : 'warn',
+        note: std < 0.05 ? '⚠️ 채도 균일 — AI 오버샘플링 특징' : '✅ 자연스러운 채도 분포'
+      });
+    }
+    if (analysis.blockFreq != null) {
+      const bf = parseFloat(analysis.blockFreq);
+      findings.push({
+        icon: '⬛', title: '블록 주파수 불규칙성',
+        raw:  `점수: ${bf.toFixed(2)}`,
+        proc: `불규칙성: ${bf < 3 ? 'LOW — AI 의심 (+10%)' : bf > 25 ? 'HIGH — 실제 신호 (-8%)' : '중립'}`,
+        status: bf < 3 ? 'anomaly' : 'normal',
+        note: bf < 3 ? '⚠️ 블록 불규칙성 낮음 — GAN 생성 패턴' : '✅ 자연스러운 블록 주파수 분포'
+      });
+    }
+
+    el.innerHTML = `
+      <div class="pf-header">
+        <div class="pf-title">🔬 물리 특성 이상치 분석 결과</div>
+        <div class="pf-summary">
+          <span class="pf-badge ${aiProb>=75?'danger':aiProb>=45?'warn':'safe'}">AI 확률 ${aiProb}%</span>
+          <span style="font-size:11px;color:var(--t3)">각 특성의 이상치가 AI 생성 여부를 판별합니다</span>
+        </div>
+      </div>
+      <div class="pf-grid">
+        ${findings.map(f => `
+          <div class="pf-item ${f.status}">
+            <div class="pf-item-hd">
+              <span class="pf-item-icon">${f.icon}</span>
+              <span class="pf-item-title">${f.title}</span>
+              <span class="pf-status-dot ${f.status}"></span>
+            </div>
+            <div class="pf-raw"><strong>원본 데이터:</strong> ${f.raw}</div>
+            <div class="pf-proc"><strong>처리 결과:</strong> ${f.proc}</div>
+            <div class="pf-note">${f.note}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // ══════════════════════════════════════════════
+  //  17기관 교차검증 탭
+  // ══════════════════════════════════════════════
+  function setupCrossVerifyButton() {
+    const btn = document.getElementById('btn-crossverify');
+    if (!btn || btn._cvBound) return;
+    btn._cvBound = true;
+    btn.addEventListener('click', runCrossVerification);
+  }
+
+  async function runCrossVerification() {
+    const btn    = document.getElementById('btn-crossverify');
+    const agDiv  = document.getElementById('cv-agencies');
+    const liveDiv = document.getElementById('cv-live-data');
+    const scoreRow = document.getElementById('cv-score-row');
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 교차검증 중...'; }
+    if (agDiv) agDiv.innerHTML = '<div class="cv-loading"><div class="vl-spin"></div><p>17개 기관 실시간 접속 중...</p></div>';
+
+    try {
+      const query = document.getElementById('qinput')?.value.trim() || 'AI generated deepfake image';
+      const body  = { reportId: state.reportId, query };
+      const res   = await fetch('/api/crossverify', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data  = await res.json();
+      if (!data.success) throw new Error(data.error || '교차검증 실패');
+      renderCrossVerifyResults(data.result);
+    } catch(e) {
+      if (agDiv) agDiv.innerHTML = `<div class="cv-placeholder">⚠️ 교차검증 오류: ${e.message}</div>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 재실행'; }
+    }
+  }
+
+  function renderCrossVerifyResults(result) {
+    if (!result) return;
+    const agDiv    = document.getElementById('cv-agencies');
+    const scoreRow = document.getElementById('cv-score-row');
+    const liveDiv  = document.getElementById('cv-live-data');
+
+    // 스코어 행
+    if (scoreRow) {
+      scoreRow.style.display = 'flex';
+      const cs = result.crossScore || {};
+      const fp = document.getElementById('cv-final-prob');
+      const lc = document.getElementById('cv-live-cnt');
+      const gc = document.getElementById('cv-gdelt-cnt');
+      const cv = document.getElementById('cv-verdict');
+      if (fp) fp.textContent = (cs.finalAIProb || 0) + '%';
+      if (lc) lc.textContent = (cs.liveSourcesChecked || 0) + '/' + (cs.totalAgencies || 17);
+      if (gc) gc.textContent = (cs.gdeltArticles || 0) + '건';
+      if (cv) {
+        const vmap = { CONFIRMED_AI:'🔴 AI 확정', UNCERTAIN:'🟡 불확실', LIKELY_REAL:'🟢 실제 가능' };
+        cv.textContent = vmap[cs.verdict] || cs.verdict || '—';
+      }
+    }
+
+    // 기관 목록
+    if (agDiv && result.agencies) {
+      const typeLabels = { ifcn:'IFCN 인증', osint:'OSINT', domestic:'국내 기관', official:'공식 기관', research:'연구기관', standard:'표준기관', tech:'기술기관', database:'데이터베이스', reference:'참조기관' };
+      const regionFlag = { INTL:'🌍', USA:'🇺🇸', UA:'🇺🇦', MENA:'🌙', KR:'🇰🇷' };
+
+      agDiv.innerHTML = result.agencies.map(ag => {
+        const isLive    = ag.status === 'live';
+        const typeLabel = typeLabels[ag.type] || ag.type;
+        const flag      = regionFlag[ag.region] || '🌐';
+
+        return `
+          <div class="cv-agency-card ${isLive ? 'live' : 'ref'}">
+            <div class="cvac-header">
+              <span class="cvac-status ${isLive ? 'live' : 'ref'}">${isLive ? '🟢 라이브' : '⚪ 참조'}</span>
+              <span class="cvac-type">${typeLabel}</span>
+              <span class="cvac-region">${flag} ${ag.region}</span>
+            </div>
+            <div class="cvac-name"><a href="${ag.url}" target="_blank">${ag.name}</a></div>
+            ${ag.instruction ? `<div class="cvac-instruction">${ag.instruction}</div>` : ''}
+            ${ag.liveItems && ag.liveItems.length > 0 ? `
+              <div class="cvac-items">
+                ${ag.liveItems.map(item => `
+                  <div class="cvac-item">
+                    <div class="cvaci-title"><a href="${item.link||'#'}" target="_blank">${item.title?.slice(0,90)||'기사 제목'}</a></div>
+                    <div class="cvaci-meta">${item.pubDate?.slice(0,16)||''} ${item.description?.slice(0,120)||''}</div>
+                  </div>`).join('')}
+              </div>` : ''}
+            <div class="cvac-relevance">
+              <div class="cvac-rel-bar"><div style="width:${ag.relevance||0}%;background:${(ag.relevance||0)>50?'#00ff88':'#ff9900'}"></div></div>
+              <span>관련도 ${ag.relevance||0}%</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // 라이브 데이터 (GDELT, DuckDuckGo, Wikipedia)
+    if (liveDiv) {
+      liveDiv.style.display = 'block';
+      const gdelt = result.liveData?.gdelt || [];
+      const ddg   = result.liveData?.duckduckgo || [];
+      const wiki  = result.liveData?.wikipedia;
+
+      const gdeltEl = document.getElementById('cv-gdelt-list');
+      if (gdeltEl) gdeltEl.innerHTML = gdelt.length
+        ? gdelt.map(a => `<div class="cvld-item"><a href="${a.url}" target="_blank">${a.title?.slice(0,80)}</a><span class="cvld-meta">${a.snippet}</span></div>`).join('')
+        : '<div class="cvld-empty">GDELT 뉴스 데이터 없음</div>';
+
+      const ddgEl = document.getElementById('cv-ddg-list');
+      if (ddgEl) ddgEl.innerHTML = ddg.length
+        ? ddg.map(d => `<div class="cvld-item"><a href="${d.url||'#'}" target="_blank">${d.title?.slice(0,80)}</a><span class="cvld-meta">${d.snippet?.slice(0,150)}</span></div>`).join('')
+        : '<div class="cvld-empty">DuckDuckGo 검색 결과 없음</div>';
+
+      const wikiEl   = document.getElementById('cv-wiki-data');
+      const wikiSect = document.getElementById('cv-wiki-section');
+      if (wiki && wikiEl) {
+        if (wikiSect) wikiSect.style.display = 'block';
+        wikiEl.innerHTML = `<div class="cvld-item"><a href="${wiki.url||'#'}" target="_blank"><strong>${wiki.title}</strong></a><span class="cvld-meta">${wiki.snippet}</span></div>`;
+      } else if (wikiSect) {
+        wikiSect.style.display = 'none';
+      }
+    }
+  }
+
+  // ── 보고서 탭 ──
+  function renderReport(analysis) {
+    const el = document.getElementById('report-body');
+    if (!el) return;
+
+    const s = analysis.scores;
+    const ts = new Date().toLocaleString('ko-KR');
+
+    el.innerHTML = `
+      <div class="rb-sec">
+        <div class="rbs-title">📋 분석 요약</div>
+        <div class="rbs-row"><span>분석 시각</span><span>${ts}</span></div>
+        <div class="rbs-row"><span>원본 해상도</span><span>${analysis.dimensions?.width}×${analysis.dimensions?.height} (${analysis.dimensions?.format?.toUpperCase()})</span></div>
+        <div class="rbs-row"><span>분석 해상도</span><span>${analysis.dimensions?.analyzed}</span></div>
+        <div class="rbs-row"><span>AI 확률</span><span style="color:${getScoreColor(parseInt(s?.aiProbability))};font-weight:700">${s?.aiProbability}%</span></div>
+        <div class="rbs-row"><span>GAN 판별자</span><span>${s?.ganProbability}%</span></div>
+        <div class="rbs-row"><span>판정</span><span style="font-weight:700">${s?.verdictLabel || s?.verdict}</span></div>
+        <div class="rbs-row"><span>신뢰도</span><span>${s?.confidence}</span></div>
+        <div class="rbs-row"><span>메타데이터 AI 확인</span><span style="color:${analysis.aiMetaSigs?.isConfirmedAI?'#ff3366':'#00ff88'}">${analysis.aiMetaSigs?.isConfirmedAI ? '⚠️ 예' : '✅ 아니오'}</span></div>
+      </div>
+
+      <div class="rb-sec">
+        <div class="rbs-title">🔢 핵심 수치</div>
+        <div class="rbs-row"><span>Trace(C)</span><span>${analysis.covariance?.trace}</span></div>
+        <div class="rbs-row"><span>이방성</span><span>${analysis.covariance?.anisotropy}</span></div>
+        <div class="rbs-row"><span>ELA 평균</span><span>${analysis.ela?.mean?.toFixed ? analysis.ela.mean.toFixed(4) : analysis.ela?.mean}</span></div>
+        <div class="rbs-row"><span>DCT 고주파 비율</span><span>${analysis.dct ? (analysis.dct.highRatio*100).toFixed(2)+'%' : '—'}</span></div>
+        <div class="rbs-row"><span>PRNU 첨도</span><span>${analysis.prnu?.kurtosis}</span></div>
+        <div class="rbs-row"><span>PRNU 공간상관</span><span>${analysis.prnu?.spatialCorr}</span></div>
+        <div class="rbs-row"><span>색상 다양성</span><span>${analysis.diffusion?.colorDiversity}</span></div>
+        <div class="rbs-row"><span>채도 σ</span><span>${analysis.saturation?.std}</span></div>
+        <div class="rbs-row"><span>블록 불규칙성</span><span>${analysis.blockFreq}</span></div>
+      </div>
+
+      ${analysis.aiMetaSigs?.detected?.length > 0 ? `
+      <div class="rb-sec" style="border-color:rgba(255,51,102,.3)">
+        <div class="rbs-title" style="color:var(--red)">🔴 AI 메타데이터 시그니처 감지</div>
+        ${analysis.aiMetaSigs.detected.map(d => `
+          <div class="rbs-row" style="color:var(--red)">
+            <span>${d.tool}</span><span>"${d.signature}" 감지</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <div class="rb-sec">
+        <div class="rbs-title">🔍 판정 근거 (${s?.reasons?.length || 0}개)</div>
+        ${(s?.reasons || []).map(r => `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd);color:var(--t2)">${r}</div>`).join('')}
+      </div>`;
+  }
+
+  // ══════════════════════════════════════════════
+  //  WEB VERIFY
+  // ══════════════════════════════════════════════
+  async function runWebVerify(query) {
+    const input = document.getElementById('wc-input');
+    if (!query) query = input?.value.trim();
+    if (!query) return;
+
+    const container = document.getElementById('wc-results');
+    if (container) container.innerHTML = '<div class="wc-loading"><div class="spin"></div> 검색 중...</div>';
+
+    try {
+      const res  = await fetch('/api/webverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, reportId: state.reportId })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      renderWebResults(data.results, query);
+    } catch(err) {
+      if (container) container.innerHTML = `<div style="color:var(--red);padding:20px;text-align:center">검색 실패: ${err.message}</div>`;
+    }
+  }
+
+  function renderWebResults(results, query) {
+    const el = document.getElementById('wc-results');
+    if (!el) return;
+
+    if (!results || results.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">검색 결과가 없습니다</div>';
+      return;
+    }
+
+    const typeColors = { factcheck:'#ff3366', research:'#7b2fff', official:'#00d4ff', news:'#ff9900', tool:'#00ff88', investigation:'#ff6633', human_rights:'#ff3399', standard:'#00ccff', technology:'#33ffcc' };
+    const typeLabels = { factcheck:'팩트체크', research:'연구', official:'공식기관', news:'뉴스', tool:'도구', investigation:'조사', human_rights:'인권', standard:'표준', technology:'기술' };
+
+    el.innerHTML = `
+      <div class="wc-query-info">🔍 "${query}" — ${results.length}개 결과</div>
+      ${results.map(r => `
+        <div class="wc-item">
+          <div class="wci-top">
+            <a href="${r.url}" target="_blank" class="wci-title">${r.title}</a>
+            <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+              ${r.type ? `<span class="wci-type" style="background:${(typeColors[r.type]||'#666')}22;color:${typeColors[r.type]||'#aaa'};border:1px solid ${(typeColors[r.type]||'#666')}44">${typeLabels[r.type]||r.type}</span>` : ''}
+              ${r.reliability === 'high' ? '<span class="wci-rel">✓ 신뢰</span>' : ''}
+            </div>
+          </div>
+          <div class="wci-src">${r.source} ${r.lang ? '· '+r.lang : ''} ${r.country ? '· '+r.country : ''}</div>
+          <div class="wci-snip">${r.snippet}</div>
+          ${r.relatedNews ? r.relatedNews.map(n=>`<div class="wci-news">📰 <a href="${n.url}" target="_blank">${n.title?.slice(0,80)}</a></div>`).join('') : ''}
+        </div>`).join('')}`;
+  }
+
+  // ── 웹 검증 초기화 ──
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchBtn = document.getElementById('btn-search');
+    if (searchBtn) searchBtn.addEventListener('click', () => runWebVerify());
+
+    const wcInput = document.getElementById('wc-input');
+    if (wcInput) wcInput.addEventListener('keydown', e => { if (e.key === 'Enter') runWebVerify(); });
+
+    document.querySelectorAll('.wt').forEach(tag => {
+      tag.addEventListener('click', () => {
+        const q = tag.dataset.q;
+        const inp = document.getElementById('wc-input');
+        if (inp) inp.value = q;
+        runWebVerify(q);
+        switchTab('webcheck');
+      });
+    });
+  });
+
+  // ══════════════════════════════════════════════
+  //  CHAT
+  // ══════════════════════════════════════════════
+  async function sendChat() {
+    const input = document.getElementById('chat-input');
+    if (!input?.value.trim()) return;
+    const msg = input.value.trim();
+    input.value = '';
+
+    addChatMsg(msg, 'user');
+
+    try {
+      const res  = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, reportId: state.reportId })
+      });
+      const data = await res.json();
+      if (data.success) addChatMsg(data.response, 'bot');
+    } catch(err) {
+      addChatMsg('연결 오류가 발생했습니다.', 'bot');
+    }
+  }
+
+  function addChatMsg(text, role) {
+    const msgs = document.getElementById('chat-msgs');
+    if (!msgs) return;
+    const div = document.createElement('div');
+    div.className = `chat-msg ${role}`;
+    const formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
+    div.innerHTML = `
+      <div class="cm-avatar">${role === 'bot' ? '🔍' : '👤'}</div>
+      <div class="cm-bubble">${formatted}</div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function initChatQuickReplies() {
+    document.querySelectorAll('.cq-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const q = btn.dataset.q;
+        const input = document.getElementById('chat-input');
+        if (input) input.value = q;
+        sendChat();
+        switchTab('chat');
+      });
     });
   }
 
-  // Add fact-check resources
-  html += `
-    <div class="fc-result-item" style="border-color: rgba(0,212,255,0.2)">
-      <div class="fc-result-header">
-        <span class="fc-result-title" style="color:var(--text2)">📌 신뢰할 수 있는 팩트체크 기관</span>
-      </div>
-      <div class="fc-result-meta" style="flex-wrap:wrap;gap:8px;margin-top:8px">
-        <a href="https://www.snopes.com/search/${encodeURIComponent(query)}" target="_blank" class="fc-tag">Snopes</a>
-        <a href="https://fact.afp.com/en" target="_blank" class="fc-tag">AFP Fact Check</a>
-        <a href="https://www.factcheck.org" target="_blank" class="fc-tag">FactCheck.org</a>
-        <a href="https://www.reuters.com/fact-check/" target="_blank" class="fc-tag">Reuters Fact Check</a>
-        <a href="https://news.sbs.co.kr/news/newsVodMain.do?menuType=13" target="_blank" class="fc-tag">SBS 팩트체크</a>
-        <a href="https://www.yonhapnewstv.co.kr/newsdetail/main" target="_blank" class="fc-tag">연합뉴스</a>
-      </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:8px">* 출처: 국제팩트체킹네트워크(IFCN) 인증 기관들입니다</p>
-    </div>`;
+  // ══════════════════════════════════════════════
+  //  TABS
+  // ══════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.rt').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+  });
 
-  container.innerHTML = html;
-}
+  function switchTab(tabName) {
+    document.querySelectorAll('.rt').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    const pane = document.getElementById(`tab-${tabName}`);
+    if (pane) pane.classList.add('active');
+  }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+  // ══════════════════════════════════════════════
+  //  SERVER STATUS & GAN STATUS
+  // ══════════════════════════════════════════════
+  async function fetchServerStatus() {
+    try {
+      const res  = await fetch('/api/health');
+      const data = await res.json();
+      updateStatusBadge(data.status === 'online', data.uptime, data.analyses, data.activeSessions);
+    } catch(e) {
+      updateStatusBadge(false, 0, 0, 0);
+    }
+  }
 
-// ─── Chat ───
-function addChatMessage(role, content) {
-  const container = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = `chat-msg ${role}`;
-  div.innerHTML = `
-    <div class="msg-avatar">${role === 'user' ? '👤' : '🔍'}</div>
-    <div class="msg-content">${content}</div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
+  async function fetchGANStatus() {
+    try {
+      const res  = await fetch('/api/gan-status');
+      const data = await res.json();
 
-function showTyping() {
-  const container = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'chat-msg assistant msg-typing';
-  div.id = 'typing-indicator';
-  div.innerHTML = `
-    <div class="msg-avatar">🔍</div>
-    <div class="msg-content">
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-      <div class="typing-dot"></div>
-    </div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
+      const gspRounds = document.getElementById('gsp-rounds');
+      const gspAcc    = document.getElementById('gsp-acc');
+      const gspLr     = document.getElementById('gsp-lr');
+      if (gspRounds) gspRounds.textContent = data.roundsCompleted || 0;
+      if (gspAcc)    gspAcc.textContent    = data.accuracy || '—';
+      if (gspLr)     gspLr.textContent     = parseFloat(data.learningRate || 0.05).toFixed(4);
+    } catch(e) {}
+  }
 
-function removeTyping() {
-  document.getElementById('typing-indicator')?.remove();
-}
+  function updateStatusBadge(online, uptime, analyses, sessions) {
+    const dot   = document.getElementById('srv-dot');
+    const label = document.getElementById('srv-label');
+    const sub   = document.getElementById('srv-sub');
+    const stats = document.getElementById('srv-stats');
+    const lsAn  = document.getElementById('ls-analyses');
+    const lsUp  = document.getElementById('ls-uptime');
 
-async function sendChat() {
-  const input = document.getElementById('chat-input');
-  const message = input.value.trim();
-  if (!message) return;
+    if (dot)   dot.className   = `srv-dot ${online ? 'online' : 'offline'}`;
+    if (label) label.textContent = online ? '서버 온라인' : '서버 오프라인';
+    if (sub)   sub.textContent   = online ? `${Math.floor(uptime/60)}분 운영 중` : '연결 끊김';
+    if (stats) stats.innerHTML  = `<span id="stat-analyses">${analyses}</span> 분석 <span id="stat-sessions">${sessions}</span> 접속`;
+    if (lsAn)  lsAn.textContent  = analyses;
+    if (lsUp)  lsUp.textContent  = online ? `${Math.floor(uptime/60)}분` : '—';
+  }
 
-  input.value = '';
-  addChatMessage('user', escapeHtml(message));
-  showTyping();
+  // ══════════════════════════════════════════════
+  //  EXPORT / COPY
+  // ══════════════════════════════════════════════
+  function exportReport() {
+    if (!state.reportId) { showToast('먼저 이미지를 분석하세요'); return; }
+    window.open(`/api/export/${state.reportId}`, '_blank');
+  }
 
-  // Switch to chat tab
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-chat')?.classList.add('active');
-  document.querySelectorAll('.rtab')[2]?.classList.add('active');
+  function copyLink() {
+    const url = `${location.origin}/api/report/${state.reportId}`;
+    navigator.clipboard.writeText(url).then(() => showToast('✅ 링크가 클립보드에 복사되었습니다'));
+  }
 
-  try {
-    const resp = await fetch('/api/chat', {
+  // ══════════════════════════════════════════════
+  //  WEBSOCKET
+  // ══════════════════════════════════════════════
+  function initWebSocket() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${proto}://${location.host}`;
+    try {
+      state.ws = new WebSocket(wsUrl);
+      state.ws.onmessage = e => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'analysis_complete') {
+            showToast(`✅ 분석 완료 — ${msg.verdict} (AI ${msg.aiProb}%)`);
+          }
+        } catch(err) {}
+      };
+      state.ws.onerror = () => {};
+      state.ws.onclose = () => {
+        if (state.wsRetries < 3) {
+          state.wsRetries++;
+          setTimeout(initWebSocket, 3000);
+        }
+      };
+    } catch(e) {}
+  }
+
+  // ══════════════════════════════════════════════
+  //  HERO CANVAS
+  // ══════════════════════════════════════════════
+  function initHeroCanvas() {
+    const canvas = document.getElementById('hero-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const particles = Array.from({ length: 60 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - .5) * .6,
+      vy: (Math.random() - .5) * .6,
+      r: Math.random() * 2 + .5,
+      color: Math.random() < .5 ? '#00D4FF' : Math.random() < .5 ? '#7B2FFF' : '#FF3366'
+    }));
+
+    (function loop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > canvas.width)  p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color + '88';
+        ctx.fill();
+      });
+      // 연결선
+      particles.forEach((a, i) => {
+        particles.slice(i+1).forEach(b => {
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 80) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = `rgba(0,212,255,${.15 * (1 - d/80)})`;
+            ctx.lineWidth = .5;
+            ctx.stroke();
+          }
+        });
+      });
+      requestAnimationFrame(loop);
+    })();
+  }
+
+  // ══════════════════════════════════════════════
+  //  CURSOR GLOW
+  // ══════════════════════════════════════════════
+  function initCursorGlow() {
+    const glow = document.createElement('div');
+    glow.id = 'cursor-glow';
+    glow.style.cssText = 'position:fixed;pointer-events:none;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(0,212,255,.06),transparent 70%);transform:translate(-50%,-50%);z-index:1;transition:opacity .3s';
+    document.body.appendChild(glow);
+    document.addEventListener('mousemove', e => {
+      glow.style.left = e.clientX + 'px';
+      glow.style.top  = e.clientY + 'px';
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  //  COUNTERS
+  // ══════════════════════════════════════════════
+  function initCounters() {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const el     = e.target;
+        const target = parseInt(el.dataset.target);
+        let current  = 0;
+        const step   = target / 60;
+        const timer  = setInterval(() => {
+          current = Math.min(current + step, target);
+          el.textContent = Math.floor(current);
+          if (current >= target) clearInterval(timer);
+        }, 16);
+        observer.unobserve(el);
+      });
+    });
+    document.querySelectorAll('[data-target]').forEach(el => observer.observe(el));
+  }
+
+  // ══════════════════════════════════════════════
+  //  SCROLL REVEAL
+  // ══════════════════════════════════════════════
+  function initScrollReveal() {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: .1 });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  }
+
+  function initScrollHint() {
+    const hint = document.getElementById('scroll-hint');
+    if (!hint) return;
+    window.addEventListener('scroll', () => { if (window.scrollY > 50) hint.classList.add('hidden'); });
+  }
+
+  function initHeaderScroll() {
+    window.addEventListener('scroll', () => {
+      const hdr = document.getElementById('hdr');
+      if (hdr) hdr.classList.toggle('scrolled', window.scrollY > 30);
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  //  ALGORITHM CANVASES
+  // ══════════════════════════════════════════════
+  function initAlgorithmCanvases() {
+    drawLumCanvas('c-lum-real', true);
+    drawLumCanvas('c-lum-fake', false);
+    drawGradCanvas('c-grad-real', true);
+    drawGradCanvas('c-grad-fake', false);
+    drawExifCanvas('c-exif-real', true);
+    drawExifCanvas('c-exif-fake', false);
+  }
+
+  function drawLumCanvas(id, isReal) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    canvas.width = 240; canvas.height = 100;
+    const ctx = canvas.getContext('2d');
+
+    if (isReal) {
+      // 자연 이미지 — 다양한 밝기 분포
+      for (let x = 0; x < 240; x++) {
+        const noise = (Math.sin(x * 0.1) * 30 + Math.sin(x * 0.3) * 20 + Math.random() * 40 + 80);
+        ctx.fillStyle = `rgba(0,212,255,${noise/200})`;
+        ctx.fillRect(x, 100 - noise/2, 1, noise/2);
+      }
+    } else {
+      // AI 이미지 — 균일한 분포
+      const base = 60;
+      for (let x = 0; x < 240; x++) {
+        const noise = base + Math.random() * 10;
+        ctx.fillStyle = `rgba(255,51,102,${noise/200})`;
+        ctx.fillRect(x, 100 - noise/2, 1, noise/2);
+      }
+    }
+  }
+
+  function drawGradCanvas(id, isReal) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    canvas.width = 240; canvas.height = 100;
+    const ctx = canvas.getContext('2d');
+
+    for (let x = 0; x < 240; x++) {
+      for (let y = 0; y < 100; y++) {
+        const v = isReal
+          ? Math.abs(Math.sin(x * 0.2) * 60 + Math.random() * 40)
+          : Math.random() * 20 + 10;
+        ctx.fillStyle = `rgba(${isReal?'0,212,255':'255,51,102'},${Math.min(v/80, .8)})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function drawExifCanvas(id, isReal) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    canvas.width = 240; canvas.height = 100;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = isReal ? 'rgba(0,212,255,.05)' : 'rgba(255,51,102,.05)';
+    ctx.fillRect(0, 0, 240, 100);
+
+    const fields = isReal
+      ? ['Make: Canon', 'Model: EOS R5', 'ISO: 400', 'f/2.8', '1/500s', 'GPS: 37.5°N']
+      : ['Software: Stable Diffusion', 'AI-Generated', 'No GPS', 'No Camera', 'EXIF: N/A', 'Seed: 48291'];
+    const color = isReal ? '#00D4FF' : '#FF3366';
+    ctx.fillStyle = color;
+    ctx.font = '9px monospace';
+    fields.forEach((f, i) => ctx.fillText(f, 8, 14 + i * 14));
+  }
+
+  // ══════════════════════════════════════════════
+  //  TOAST
+  // ══════════════════════════════════════════════
+  function showToast(msg) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.style.cssText = 'background:#1E2832;border:1px solid rgba(0,212,255,.3);border-radius:10px;padding:12px 16px;font-size:13px;color:#fff;box-shadow:0 4px 24px rgba(0,0,0,.5);animation:slideUp .3s ease;max-width:320px';
+    toast.textContent = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
+  }
+
+  // ══════════════════════════════════════════════
+  //  HELPERS
+  // ══════════════════════════════════════════════
+  function getScoreColor(prob) {
+    if (prob >= 75) return '#ff3366';
+    if (prob >= 40) return '#ff9900';
+    return '#00ff88';
+  }
+
+  // ══════════════════════════════════════════════
+  //  LEARNING PAGE
+  // ══════════════════════════════════════════════
+
+  const lp = {
+    page:        1,
+    perPage:     15,
+    filter:      'all',
+    labelFile:   null,
+    initialized: false,
+    logEntries:  []
+  };
+
+  function initLearningPage() {
+    if (!document.getElementById('page-learning')) return;
+    if (!lp.initialized) {
+      setupLabelDropZone();
+      setupLabelButtons();
+      setupPipelineControls();
+      setupTrainButton();
+      setupDatasetBrowser();
+      setupLogClear();
+      lp.initialized = true;
+    }
+    refreshMLStatus();
+    refreshDataset();
+  }
+
+  // ── ML Status ───────────────────────────────
+  function refreshMLStatus() {
+    fetch('/api/ml/status')
+      .then(r => r.json())
+      .then(data => {
+        const st  = data.learning_state || {};
+        const ds  = data;
+        el('ml-status-dot').textContent    = data.ml_engine_ready !== false ? '🟢' : '🔴';
+        el('ml-labeled-cnt').textContent   = st.labeled_samples || 0;
+        el('ml-train-rounds').textContent  = st.training_rounds  || 0;
+        const acc = st.accuracy || 0;
+        el('ml-accuracy').textContent      = acc > 0 ? acc + '%' : '—';
+        // dataset stats
+        const fetched = data.fetch_stats || {};
+        el('ml-real-cnt').textContent = fetched.real_fetched || 0;
+        el('ml-ai-cnt').textContent   = fetched.ai_fetched   || 0;
+        // pipeline log
+        const logLines = (st.pipeline_log || []).slice(-10).reverse();
+        if (logLines.length) {
+          logLines.forEach(e => addLearningLog(e.event, JSON.stringify(e.detail || ''), 'info'));
+        }
+      })
+      .catch(() => {
+        el('ml-status-dot').textContent = '🔴';
+      });
+  }
+
+  function pollMLStatus() {
+    if (state.currentPage === 'learning') refreshMLStatus();
+  }
+
+  // ── Pipeline Controls ────────────────────────
+  function setupPipelineControls() {
+    const realSlider = document.getElementById('pipe-real');
+    const aiSlider   = document.getElementById('pipe-ai');
+    const realVal    = document.getElementById('pipe-real-val');
+    const aiVal      = document.getElementById('pipe-ai-val');
+
+    if (realSlider) realSlider.addEventListener('input', () => { realVal.textContent = realSlider.value; });
+    if (aiSlider)   aiSlider.addEventListener('input',   () => { aiVal.textContent   = aiSlider.value; });
+
+    const btn = document.getElementById('btn-run-pipeline');
+    if (btn) btn.addEventListener('click', runPipeline);
+
+    const refreshBtn = document.getElementById('btn-ml-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => {
+      refreshMLStatus();
+      refreshDataset();
+    });
+  }
+
+  function runPipeline() {
+    const btn       = document.getElementById('btn-run-pipeline');
+    const realCount = parseInt(document.getElementById('pipe-real')?.value || '10');
+    const aiCount   = parseInt(document.getElementById('pipe-ai')?.value   || '10');
+    const autoTrain = document.getElementById('pipe-autotrain')?.checked    ?? true;
+
+    if (btn) btn.disabled = true;
+    addPipelineLog(`🚀 파이프라인 시작: 실제 ${realCount}개 + AI ${aiCount}개 수집 중...`, 'info');
+    addLearningLog('pipeline', `파이프라인 시작 (real=${realCount}, ai=${aiCount}, train=${autoTrain})`, 'pipeline');
+
+    fetch('/api/ml/pipeline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message,
-        reportId: currentReportId,
-        history: []
-      })
+      body: JSON.stringify({ real_count: realCount, ai_count: aiCount, auto_train: autoTrain })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        addPipelineLog(`❌ 오류: ${data.error}`, 'error');
+        addLearningLog('pipeline', `오류: ${data.error}`, 'error');
+      } else {
+        addPipelineLog(`✅ ${data.message}`, 'success');
+        addLearningLog('pipeline', data.message, 'pipeline');
+        // Poll for completion
+        pollPipelineStatus(btn);
+      }
+    })
+    .catch(e => {
+      addPipelineLog(`❌ 요청 실패: ${e.message}`, 'error');
+      if (btn) btn.disabled = false;
     });
-    const data = await resp.json();
-    removeTyping();
-    if (data.response) addChatMessage('assistant', data.response);
-  } catch (err) {
-    removeTyping();
-    addChatMessage('assistant', '죄송합니다, 응답 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
   }
-}
 
-// ─── Report Generation ───
-function renderReport(analysis, reportId) {
-  const container = document.getElementById('report-container');
-  const { scores, covariance, gradient, saturation, luminance, dimensions } = analysis;
-  const prob = parseInt(scores.aiProbability);
+  function pollPipelineStatus(btn) {
+    let polls = 0;
+    const interval = setInterval(() => {
+      polls++;
+      fetch('/api/ml/status')
+        .then(r => r.json())
+        .then(data => {
+          const st = data.learning_state || {};
+          if (!st.is_training || polls > 30) {
+            clearInterval(interval);
+            if (btn) btn.disabled = false;
+            const log = (st.pipeline_log || []).slice(-1)[0];
+            if (log && log.event === 'pipeline_complete') {
+              const d = log.detail || {};
+              addPipelineLog(`✅ 완료: 실제 ${d.real_count||0}개 + AI ${d.ai_count||0}개 수집, ${d.features_extracted||0}개 특성 추출`, 'success');
+              if (d.training_result) {
+                addPipelineLog(`🎯 학습 완료: 배치 정확도 ${d.training_result.batch_accuracy}%`, 'success');
+              }
+            } else {
+              addPipelineLog(`⚠️ 파이프라인 상태 확인 완료`, 'warn');
+            }
+            refreshMLStatus();
+            refreshDataset();
+          } else {
+            addPipelineLog(`⏳ 처리 중... (${polls * 2}s)`, 'info');
+          }
+        })
+        .catch(() => clearInterval(interval));
+    }, 2000);
+  }
 
-  const verdictColor = scores.verdict === 'LIKELY_REAL' ? 'var(--green)' :
-                       scores.verdict === 'UNCERTAIN' ? 'var(--orange)' : 'var(--red)';
-  const verdictKo = scores.verdict === 'LIKELY_REAL' ? '실제 사진 가능성 높음' :
-                    scores.verdict === 'UNCERTAIN' ? '불확실 — 추가 검증 필요' : 'AI 생성 가능성 높음';
+  function addPipelineLog(msg, type) {
+    const log  = document.getElementById('pipeline-log');
+    if (!log) return;
+    const empty = log.querySelector('.log-empty');
+    if (empty) empty.remove();
+    const line = document.createElement('div');
+    line.className = `log-line ${type}`;
+    line.textContent = `[${new Date().toLocaleTimeString('ko-KR')}] ${msg}`;
+    log.insertBefore(line, log.firstChild);
+    while (log.children.length > 50) log.removeChild(log.lastChild);
+  }
 
-  container.innerHTML = `
-    <div class="report-header">
-      <div>
-        <div class="report-logo">🔍 Fact Maze</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:4px">AI 허위 이미지 탐지 보고서</div>
-      </div>
-      <div class="report-meta">
-        <div>보고서 ID: <strong>${reportId.slice(0,8).toUpperCase()}</strong></div>
-        <div>분석 시각: ${new Date().toLocaleString('ko-KR')}</div>
-        <div>분석 해상도: ${dimensions.analyzed}</div>
-        <div>데이터 출처: Luminance/Gradient PCA 알고리즘</div>
-      </div>
-    </div>
+  // ── Label Drop Zone ──────────────────────────
+  function setupLabelDropZone() {
+    const zone  = document.getElementById('label-drop-zone');
+    const input = document.getElementById('label-file-input');
+    if (!zone || !input) return;
 
-    <div class="report-section">
-      <h3>최종 판정</h3>
-      <div class="report-verdict-box" style="background:${verdictColor}22;border:1px solid ${verdictColor};color:${verdictColor}">
-        ${scores.verdict === 'LIKELY_REAL' ? '✅' : scores.verdict === 'UNCERTAIN' ? '⚠️' : '🚨'} 
-        ${verdictKo}
-        <span style="margin-left:16px;font-size:24px">${prob}% AI 확률</span>
-      </div>
-    </div>
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) setLabelFile(file);
+    });
+    input.addEventListener('change', () => {
+      if (input.files[0]) setLabelFile(input.files[0]);
+    });
+  }
 
-    <div class="report-section">
-      <h3>공분산 행렬 분석 (핵심 지표)</h3>
-      <table class="report-table">
-        <tr><td>공분산 C₀₀ (Gx 분산)</td><td>${covariance.C00}</td></tr>
-        <tr><td>공분산 C₁₁ (Gy 분산)</td><td>${covariance.C11}</td></tr>
-        <tr><td>공분산 C₀₁ (교차 분산)</td><td>${covariance.C01}</td></tr>
-        <tr><td>Trace(C) = C₀₀ + C₁₁</td><td><strong>${covariance.trace}</strong></td></tr>
-        <tr><td>고유값 λ₁</td><td>${covariance.lambda1}</td></tr>
-        <tr><td>고유값 λ₂</td><td>${covariance.lambda2}</td></tr>
-        <tr><td>방향 이방성</td><td>${covariance.anisotropy}</td></tr>
-      </table>
-    </div>
+  function setLabelFile(file) {
+    lp.labelFile = file;
+    const preview = document.getElementById('label-preview-wrap');
+    const img     = document.getElementById('label-preview-img');
+    const info    = document.getElementById('label-preview-info');
+    if (preview) preview.style.display = 'flex';
+    if (img)  img.src = URL.createObjectURL(file);
+    if (info) info.innerHTML = `<strong>${file.name}</strong>${(file.size/1024).toFixed(1)} KB · ${file.type}`;
+    el('btn-label-real').disabled = false;
+    el('btn-label-ai').disabled   = false;
+    el('label-result').textContent = '';
+    el('label-result').className   = 'label-result';
+  }
 
-    <div class="report-section">
-      <h3>그라디언트 분석</h3>
-      <table class="report-table">
-        <tr><td>평균 그라디언트</td><td>${gradient.mean}</td></tr>
-        <tr><td>그라디언트 표준편차</td><td>${gradient.std}</td></tr>
-        <tr><td>고주파 비율</td><td>${gradient.highFreqRatio}</td></tr>
-        <tr><td>밝기 평균 (Luminance)</td><td>${luminance.mean}</td></tr>
-        <tr><td>밝기 표준편차</td><td>${luminance.std}</td></tr>
-      </table>
-    </div>
+  // ── Label Buttons ────────────────────────────
+  function setupLabelButtons() {
+    const btnReal = document.getElementById('btn-label-real');
+    const btnAI   = document.getElementById('btn-label-ai');
+    if (btnReal) btnReal.addEventListener('click', () => submitLabel('real'));
+    if (btnAI)   btnAI.addEventListener('click',   () => submitLabel('ai_generated'));
+  }
 
-    <div class="report-section">
-      <h3>색상 분석</h3>
-      <table class="report-table">
-        <tr><td>평균 채도</td><td>${saturation.mean}</td></tr>
-        <tr><td>채도 표준편차</td><td>${saturation.std}</td></tr>
-      </table>
-    </div>
+  function submitLabel(label) {
+    if (!lp.labelFile) return;
+    const resultDiv = document.getElementById('label-result');
+    const btnReal   = document.getElementById('btn-label-real');
+    const btnAI     = document.getElementById('btn-label-ai');
 
-    <div class="report-section">
-      <h3>점수 요약</h3>
-      <table class="report-table">
-        <tr><td>AI 의심도 점수</td><td>${scores.aiScore}%</td></tr>
-        <tr><td>AI 생성 확률 (종합)</td><td><strong style="color:${verdictColor}">${scores.aiProbability}%</strong></td></tr>
-        <tr><td>노이즈 점수</td><td>${scores.noiseScore}%</td></tr>
-        <tr><td>패턴 불규칙성</td><td>${scores.patternIrregularity}%</td></tr>
-      </table>
-    </div>
+    btnReal.disabled = true;
+    btnAI.disabled   = true;
+    resultDiv.className   = 'label-result';
+    resultDiv.textContent = '⏳ 라벨링 & 특성 추출 중...';
 
-    <div style="font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:16px;margin-top:8px;line-height:1.8">
-      <strong>면책 조항:</strong> 본 보고서는 알고리즘 기반 분석 결과이며 최종 판단의 참고 자료입니다. 
-      이미지 조작 여부의 최종 확인은 전문가 검토 및 다중 소스 검증이 필요합니다.<br/>
-      <strong>알고리즘 출처:</strong> Luminance 변환(BT.709), Sobel Gradient, 공분산 행렬 PCA 분석<br/>
-      <strong>뉴스 데이터:</strong> GDELT Project, DuckDuckGo Instant Answers API<br/>
-      <strong>팩트체크 기관:</strong> IFCN(국제팩트체킹네트워크) 인증 기관 링크 제공
-    </div>
-  `;
-}
+    const fd = new FormData();
+    fd.append('image', lp.labelFile);
+    fd.append('label', label);
+    fd.append('source', 'manual_upload');
 
-// ─── Export ───
-async function exportReport() {
-  if (!currentReportId) { showToast('먼저 이미지를 분석하세요', 'warning'); return; }
-  window.open(`/api/export/${currentReportId}`, '_blank');
-  showToast('📥 보고서 다운로드 시작', 'success');
-}
+    fetch('/api/ml/label_image', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          resultDiv.className   = 'label-result error';
+          resultDiv.textContent = `❌ 오류: ${data.error}`;
+        } else {
+          resultDiv.className   = 'label-result success';
+          const trainInfo = data.training_result
+            ? ` | 학습: ${data.training_result.batch_accuracy}% 정확도`
+            : '';
+          resultDiv.textContent = `✅ 라벨링 완료 (${label === 'real' ? '실제' : 'AI 생성'}) · 총 ${data.total_labeled}개${trainInfo}`;
+          addLearningLog('label', `${label} 라벨 추가 → 총 ${data.total_labeled}개`, 'label');
+          if (data.training_result) {
+            addLearningLog('train', `자동 학습: ${data.training_result.batch_accuracy}% 정확도`, 'train');
+          }
+          lp.labelFile = null;
+          // Reset preview
+          const preview = document.getElementById('label-preview-wrap');
+          if (preview) preview.style.display = 'none';
+          const inp = document.getElementById('label-file-input');
+          if (inp) inp.value = '';
+          refreshMLStatus();
+          refreshDataset();
+        }
+        btnReal.disabled = false;
+        btnAI.disabled   = false;
+      })
+      .catch(e => {
+        resultDiv.className   = 'label-result error';
+        resultDiv.textContent = `❌ 요청 실패: ${e.message}`;
+        btnReal.disabled = false;
+        btnAI.disabled   = false;
+      });
+  }
 
-function copyReportLink() {
-  if (!currentReportId) { showToast('먼저 이미지를 분석하세요', 'warning'); return; }
-  const url = `${location.origin}/api/report/${currentReportId}`;
-  navigator.clipboard.writeText(url).then(() => {
-    showToast('🔗 보고서 링크가 복사되었습니다', 'success');
-  }).catch(() => {
-    showToast('링크: ' + url, 'info');
-  });
-}
+  // ── Train Button ─────────────────────────────
+  function setupTrainButton() {
+    const btn = document.getElementById('btn-train-all');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      const progress = document.getElementById('train-progress');
+      const fill     = document.getElementById('tp-fill');
+      const msg      = document.getElementById('tp-msg');
+      const result   = document.getElementById('train-result');
 
-// ─── Toast ───
-function showToast(msg, type = 'info') {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.className = `toast show ${type}`;
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => {
-    toast.classList.remove('show');
-  }, 3500);
-}
+      if (progress) progress.style.display = 'block';
+      if (fill)     fill.style.width = '30%';
+      if (msg)      msg.textContent  = '학습 요청 중...';
+      result.className   = 'train-result';
+      result.textContent = '';
 
-// ─── Add fadeIn animation ───
-const style = document.createElement('style');
-style.textContent = `
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-`;
-document.head.appendChild(style);
+      addLearningLog('train', '전체 데이터 재학습 시작', 'train');
+
+      fetch('/api/ml/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'all' })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (fill) fill.style.width = '70%';
+        if (msg)  msg.textContent  = '학습 진행 중...';
+        if (data.error) {
+          result.className   = 'train-result error';
+          result.textContent = `❌ ${data.error}`;
+          if (progress) progress.style.display = 'none';
+          btn.disabled = false;
+          return;
+        }
+        // Poll for completion
+        setTimeout(() => {
+          fetch('/api/ml/status')
+            .then(r => r.json())
+            .then(status => {
+              const st = status.learning_state || {};
+              if (fill) fill.style.width = '100%';
+              if (progress) setTimeout(() => { progress.style.display = 'none'; fill.style.width = '0%'; }, 1000);
+              result.className = 'train-result success';
+              result.textContent = `✅ 학습 완료 | 라운드: ${st.training_rounds} | 정확도: ${st.accuracy || '—'}%`;
+              addLearningLog('train', `학습 완료: 정확도 ${st.accuracy}%`, 'train');
+              refreshMLStatus();
+              btn.disabled = false;
+            })
+            .catch(() => { btn.disabled = false; if (progress) progress.style.display = 'none'; });
+        }, 3000);
+      })
+      .catch(e => {
+        result.className   = 'train-result error';
+        result.textContent = `❌ 요청 실패: ${e.message}`;
+        if (progress) progress.style.display = 'none';
+        btn.disabled = false;
+      });
+    });
+  }
+
+  // ── Dataset Browser ──────────────────────────
+  function setupDatasetBrowser() {
+    document.querySelectorAll('.db-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.db-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        lp.filter = btn.dataset.filter === 'manual' ? null : (btn.dataset.filter === 'all' ? 'all' : btn.dataset.filter);
+        lp._manual = btn.dataset.filter === 'manual';
+        lp.page = 1;
+        refreshDataset();
+      });
+    });
+
+    document.getElementById('db-prev')?.addEventListener('click', () => {
+      if (lp.page > 1) { lp.page--; refreshDataset(); }
+    });
+    document.getElementById('db-next')?.addEventListener('click', () => {
+      lp.page++; refreshDataset();
+    });
+  }
+
+  function refreshDataset() {
+    const params = new URLSearchParams({ page: lp.page, per_page: lp.perPage });
+    if (lp.filter && lp.filter !== 'all') params.append('label', lp.filter);
+
+    fetch(`/api/ml/labeled?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        const tbody    = document.getElementById('dataset-tbody');
+        const pageInfo = document.getElementById('db-page-info');
+        const prevBtn  = document.getElementById('db-prev');
+        const nextBtn  = document.getElementById('db-next');
+
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        let items = data.items || [];
+        if (lp._manual) items = items.filter(i => !i.auto_labeled);
+
+        if (items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="table-empty">데이터가 없습니다</td></tr>';
+        } else {
+          items.forEach(item => {
+            const tr = document.createElement('tr');
+            const isManual  = !item.auto_labeled;
+            const timeStr   = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR') : '—';
+            const labelBadge = `<span class="label-badge ${item.label}">${item.label === 'real' ? '실제' : 'AI'}</span>`;
+            const typeBadge  = `<span class="type-badge ${isManual?'manual':''}">${isManual ? '수동' : '자동'}</span>`;
+            tr.innerHTML = `
+              <td style="font-family:monospace;font-size:.72rem">${item.id}</td>
+              <td>${labelBadge}</td>
+              <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.source || '—'}</td>
+              <td>${typeBadge}</td>
+              <td style="white-space:nowrap">${timeStr}</td>
+              <td><button class="btn-delete-row" data-id="${item.id}">🗑</button></td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          // Delete handlers
+          tbody.querySelectorAll('.btn-delete-row').forEach(btn => {
+            btn.addEventListener('click', () => deleteDatasetItem(btn.dataset.id));
+          });
+        }
+
+        const totalPages = Math.max(1, Math.ceil((data.total || 0) / lp.perPage));
+        if (pageInfo) pageInfo.textContent = `${lp.page} / ${totalPages}  (${data.real_count||0}실제 / ${data.ai_count||0}AI)`;
+        if (prevBtn) prevBtn.disabled = lp.page <= 1;
+        if (nextBtn) nextBtn.disabled = lp.page >= totalPages;
+      })
+      .catch(() => {
+        const tbody = document.getElementById('dataset-tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="table-empty">ML 엔진 연결 중...</td></tr>';
+      });
+  }
+
+  function deleteDatasetItem(id) {
+    if (!confirm(`샘플 ${id}를 삭제하시겠습니까?`)) return;
+    fetch(`/api/ml/labeled/${id}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        addLearningLog('label', `샘플 ${id} 삭제 (남은 수: ${data.remaining})`, 'label');
+        refreshDataset();
+        refreshMLStatus();
+      })
+      .catch(console.error);
+  }
+
+  // ── Learning Log ─────────────────────────────
+  function addLearningLog(type, msg, cssType) {
+    const log = document.getElementById('learning-log');
+    if (!log) return;
+    const empty = log.querySelector('.log-empty');
+    if (empty) empty.remove();
+    const entry = document.createElement('div');
+    entry.className = 'll-entry';
+    const time = new Date().toLocaleTimeString('ko-KR');
+    entry.innerHTML = `
+      <span class="ll-time">${time}</span>
+      <span class="ll-type ${cssType}">${type.toUpperCase()}</span>
+      <span class="ll-msg">${msg}</span>
+    `;
+    log.insertBefore(entry, log.firstChild);
+    while (log.children.length > 100) log.removeChild(log.lastChild);
+    lp.logEntries.push({ time, type, msg });
+  }
+
+  function setupLogClear() {
+    const btn = document.getElementById('btn-log-clear');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const log = document.getElementById('learning-log');
+      if (log) { log.innerHTML = '<div class="log-empty">로그가 지워졌습니다.</div>'; }
+      const plog = document.getElementById('pipeline-log');
+      if (plog) { plog.innerHTML = '<div class="log-empty">파이프라인을 실행하면 로그가 표시됩니다.</div>'; }
+    });
+  }
+
+  // ── WebSocket ML events ──────────────────────
+  // (Hook into existing WS message handler)
+  const _origWSMsg = window._wsMessageHandler;
+  window._wsMessageHandler = function(data) {
+    if (data.type === 'pipeline_started') {
+      addLearningLog('pipeline', `파이프라인 시작: real=${data.real_count}, ai=${data.ai_count}`, 'pipeline');
+    } else if (data.type === 'pipeline_complete') {
+      addLearningLog('pipeline', '파이프라인 완료', 'pipeline');
+      refreshMLStatus(); refreshDataset();
+    } else if (data.type === 'label_added') {
+      addLearningLog('label', `라벨 추가: ${data.label}`, 'label');
+    } else if (data.type === 'training_started') {
+      addLearningLog('train', '학습 시작', 'train');
+    } else if (data.type === 'ml_engine_ready') {
+      addLearningLog('info', 'ML 엔진 온라인', 'info');
+      refreshMLStatus();
+    }
+    if (_origWSMsg) _origWSMsg(data);
+  };
+
+  // Helper: safe el()
+  function el(id) { return document.getElementById(id) || { textContent: '', className: '', disabled: false }; }
+
+  // ══════════════════════════════════════════════
+  //  PUBLIC API
+  // ══════════════════════════════════════════════
+  return { navigateTo, sendChat, exportReport, copyLink, runWebVerify, switchTab, initLearningPage };
+
+})();

@@ -1,564 +1,2048 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fact Maze — AI 허위 이미지 탐지 시스템</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Fact Maze — AI 딥페이크·허위 이미지 탐지 플랫폼</title>
+<meta name="description" content="7단계 AI 알고리즘으로 딥페이크·AI 생성 이미지를 탐지하고 실시간 팩트체크를 제공하는 과학적 허위정보 검증 플랫폼"/>
+<link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+<link rel="shortcut icon" href="favicon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
 
-<!-- ░░ HEADER ░░ -->
-<header class="header">
-  <div class="header-inner">
-    <div class="logo" onclick="showSection('home')">
-      <div class="logo-icon">
-        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="40" height="40" rx="10" fill="#0D1117"/>
-          <path d="M8 20 L15 13 L22 20 L29 13 L36 20" stroke="#00D4FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M8 27 L15 20 L22 27 L29 20 L36 27" stroke="#7B2FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="20" cy="20" r="3" fill="#FF3366"/>
-        </svg>
-      </div>
-      <div class="logo-text">
+<!-- ░░░ FIXED HEADER (모든 페이지 고정) ░░░ -->
+<header class="hdr" id="hdr">
+  <div class="hdr-inner">
+    <!-- Logo -->
+    <div class="hdr-logo" data-nav="home">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="9" fill="#0D1117"/>
+        <path d="M6 20 L10 14 L14 20 L18 12 L22 20 L26 14 L30 20" stroke="#00D4FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 26 L10 22 L14 26 L18 18 L22 26 L26 22 L30 26" stroke="#7B2FFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
+        <circle cx="18" cy="18" r="2.5" fill="#FF3366" opacity=".9"/>
+      </svg>
+      <div class="logo-txt">
         <span class="logo-name">Fact Maze</span>
-        <span class="logo-sub">AI 허위 이미지 탐지</span>
+        <span class="logo-sub">AI 딥페이크 탐지</span>
       </div>
     </div>
-    <nav class="nav">
-      <button class="nav-btn active" onclick="showSection('home')" data-section="home">홈</button>
-      <button class="nav-btn" onclick="showSection('analyze')" data-section="analyze">이미지 분석</button>
-      <button class="nav-btn" onclick="showSection('about')" data-section="about">알고리즘</button>
+
+    <!-- Nav -->
+    <nav class="hdr-nav">
+      <button class="nv active" data-nav="home">홈</button>
+      <button class="nv" data-nav="analyze">이미지 분석</button>
+      <button class="nv" data-nav="learning">AI 학습</button>
+      <button class="nv" data-nav="flowchart">시스템 흐름도</button>
+      <button class="nv" data-nav="algorithm">알고리즘</button>
+      <button class="nv" data-nav="about">서비스 소개</button>
     </nav>
-    <div class="header-badge">
-      <span class="status-dot"></span>
-      <span>실시간 분석 시스템</span>
+
+    <!-- 실시간 서버 상태 (모든 페이지 고정 표시) -->
+    <div class="hdr-status" id="hdr-status">
+      <div class="srv-dot" id="srv-dot"></div>
+      <div class="srv-info">
+        <span class="srv-label" id="srv-label">연결 중...</span>
+        <span class="srv-sub" id="srv-sub">상태 확인 중</span>
+      </div>
+      <div class="srv-stats" id="srv-stats">
+        <span id="stat-analyses">—</span> 분석
+        <span id="stat-sessions">—</span> 접속
+      </div>
     </div>
+
+    <button class="hdr-cta" data-nav="analyze">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+        <path d="M21 21L15 15M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      지금 분석
+    </button>
   </div>
 </header>
 
-<!-- ░░ SECTION: HOME ░░ -->
-<section id="section-home" class="section active">
-  <div class="hero">
-    <div class="hero-bg">
-      <div class="hero-grid"></div>
-      <div class="hero-orb hero-orb-1"></div>
-      <div class="hero-orb hero-orb-2"></div>
-    </div>
-    <div class="hero-content">
+<!-- ░░░ PAGE WRAPPER ░░░ -->
+<div class="page-wrap" id="page-wrap">
+
+<!-- ══════════════════════════════════════════════
+     PAGE: HOME
+══════════════════════════════════════════════ -->
+<div class="page" id="page-home">
+
+  <!-- HERO -->
+  <section class="hero">
+    <canvas id="hero-canvas"></canvas>
+    <div class="hero-orb o1"></div>
+    <div class="hero-orb o2"></div>
+    <div class="hero-orb o3"></div>
+
+    <div class="hero-inner">
       <div class="hero-badge">
-        <span class="badge-icon">🔍</span>
-        <span>팩트를 만들어 가는 사람들</span>
+        <span class="hb-dot"></span>
+        실시간 AI 허위이미지 탐지 v6 · GAN 판별자 · 빅데이터 학습
       </div>
-      <h1 class="hero-title">
-        <span class="gradient-text">AI 허위 이미지</span>를<br/>
-        즉시 탐지하고<br/>
-        <span class="gradient-text-2">진실을 검증</span>합니다
+
+      <h1 class="hero-h1">
+        <span class="txt-cx">딥페이크·AI 생성</span><br/>
+        이미지를 과학으로<br/>
+        <span class="txt-og">즉시 검증</span>합니다
       </h1>
-      <p class="hero-desc">
-        딥페이크·AI 생성 이미지를 과학적 알고리즘으로 분석하고,<br/>
-        실시간 다중 팩트체크로 루머와 허위정보를 즉각 검증합니다.
+
+      <p class="hero-p">
+        BT.709 밝기 분석 → Sobel 그라디언트 → PCA 공분산 행렬까지<br/>
+        7단계 알고리즘과 12개 팩트체크 DB로 허위정보를 꿰뚫습니다.
       </p>
-      <div class="hero-actions">
-        <button class="btn-primary" onclick="showSection('analyze')">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 21L15 15M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+
+      <div class="hero-btns">
+        <button class="btn-prim" data-nav="analyze">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M21 21L15 15M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
           이미지 분석 시작
         </button>
-        <button class="btn-secondary" onclick="showSection('about')">알고리즘 보기</button>
-      </div>
-      <div class="hero-stats">
-        <div class="stat-item">
-          <span class="stat-num">7단계</span>
-          <span class="stat-label">분석 알고리즘</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-num">다중</span>
-          <span class="stat-label">팩트체크 소스</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-num">실시간</span>
-          <span class="stat-label">결과 보고서</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Use cases -->
-  <div class="features container">
-    <div class="section-label">주요 탐지 대상</div>
-    <h2 class="section-title">무엇을 탐지할 수 있나요?</h2>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon" style="background:#FF336622;color:#FF3366">🪖</div>
-        <h3>전쟁·분쟁 허위 이미지</h3>
-        <p>이란-이스라엘, 러시아-우크라이나 등 분쟁 지역에서 확산되는 AI 합성·조작 이미지를 즉각 탐지합니다.</p>
-        <div class="feature-tag">High Priority</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:#7B2FFF22;color:#7B2FFF">👤</div>
-        <h3>딥페이크 범죄</h3>
-        <p>유명인·일반인의 얼굴을 무단으로 합성한 딥페이크 이미지를 물리적 특징 분석으로 검출합니다.</p>
-        <div class="feature-tag">Criminal Detection</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:#00D4FF22;color:#00D4FF">📱</div>
-        <h3>SNS 바이럴 허위정보</h3>
-        <p>소셜미디어를 통해 빠르게 확산되는 AI 생성 허위 이미지를 실시간으로 검증합니다.</p>
-        <div class="feature-tag">Real-time</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:#FF990022;color:#FF9900">📰</div>
-        <h3>언론·미디어 조작</h3>
-        <p>뉴스·언론에 사용된 이미지의 진위를 GDELT 뉴스 데이터베이스와 교차 검증합니다.</p>
-        <div class="feature-tag">Media Verify</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- How it works -->
-  <div class="howto container">
-    <div class="section-label">사용 방법</div>
-    <h2 class="section-title">3단계로 완성되는 팩트체크</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">01</div>
-        <div class="step-content">
-          <h3>이미지 업로드</h3>
-          <p>의심되는 이미지를 드래그&드롭 또는 파일 선택으로 업로드합니다.</p>
-        </div>
-      </div>
-      <div class="step-arrow">→</div>
-      <div class="step">
-        <div class="step-num">02</div>
-        <div class="step-content">
-          <h3>AI 알고리즘 분석</h3>
-          <p>Luminance, Gradient, PCA 분석으로 AI 생성 여부를 수치화합니다.</p>
-        </div>
-      </div>
-      <div class="step-arrow">→</div>
-      <div class="step">
-        <div class="step-num">03</div>
-        <div class="step-content">
-          <h3>보고서 & 팩트체크</h3>
-          <p>상세 분석 보고서를 받고, 채팅으로 심층 팩트체크를 진행합니다.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ░░ SECTION: ANALYZE ░░ -->
-<section id="section-analyze" class="section">
-  <div class="analyze-layout">
-
-    <!-- Left Panel: Upload + Controls -->
-    <div class="analyze-left">
-      <div class="panel">
-        <div class="panel-header">
-          <h2>이미지 업로드</h2>
-          <span class="panel-badge">AI 분석 엔진</span>
-        </div>
-
-        <!-- Drop Zone -->
-        <div class="dropzone" id="dropzone">
-          <div class="drop-inner" id="drop-inner">
-            <div class="drop-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                <path d="M7 16.5C5.01472 16.5 3.5 15.0853 3.5 13.5C3.5 12.1399 4.44365 11.0023 5.72183 10.6279C5.72183 10.5865 5.71671 10.5453 5.71671 10.5C5.71671 8.01472 7.73143 6 10.2167 6C11.9741 6 13.4997 7.03365 14.2626 8.5H14.5C16.4853 8.5 18 10.0147 18 12C18 13.9853 16.4853 15.5 14.5 15.5" stroke="#00D4FF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M12 21V12M9 15L12 12L15 15" stroke="#7B2FFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <p class="drop-title">이미지를 드래그하거나 클릭하여 업로드</p>
-            <p class="drop-sub">JPG, PNG, WebP, GIF — 최대 20MB</p>
-            <button class="btn-upload" onclick="document.getElementById('file-input').click()">파일 선택</button>
-          </div>
-          <div class="drop-preview" id="drop-preview" style="display:none">
-            <img id="preview-img" src="" alt="Preview" />
-            <div class="preview-info">
-              <span id="preview-name"></span>
-              <button class="btn-clear" onclick="clearImage()">✕ 삭제</button>
-            </div>
-          </div>
-          <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileSelect(event)" />
-        </div>
-
-        <!-- Fact-check query -->
-        <div class="factcheck-input">
-          <label>팩트체크 검색어 (선택)</label>
-          <div class="input-group">
-            <input type="text" id="fc-query" placeholder="예: 우크라이나 전쟁 이미지 조작" />
-          </div>
-          <p class="input-hint">이미지와 관련된 키워드를 입력하면 실시간 뉴스 팩트체크가 진행됩니다</p>
-        </div>
-
-        <button class="btn-analyze" id="btn-analyze" onclick="startAnalysis()" disabled>
-          <span class="btn-text">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            분석 시작
-          </span>
-          <div class="btn-loader" style="display:none">
-            <div class="spinner"></div>
-            <span>분석 중...</span>
-          </div>
+        <button class="btn-sec" data-nav="algorithm">
+          알고리즘 원리 보기 →
         </button>
       </div>
 
-      <!-- Algorithm Info -->
-      <div class="panel panel-info">
-        <div class="algo-steps">
-          <div class="algo-step">
-            <div class="algo-num">1</div>
-            <div>
-              <strong>RGB → 밝기(Luminance)</strong>
-              <span>L = 0.2126R + 0.7152G + 0.0722B</span>
-            </div>
-          </div>
-          <div class="algo-step">
-            <div class="algo-num">2</div>
-            <div>
-              <strong>Sobel 그라디언트 계산</strong>
-              <span>Gx = ∂L/∂x, Gy = ∂L/∂y</span>
-            </div>
-          </div>
-          <div class="algo-step">
-            <div class="algo-num">3</div>
-            <div>
-              <strong>벡터 평탄화 & 공분산</strong>
-              <span>C = (1/N)·M^T·M</span>
-            </div>
-          </div>
-          <div class="algo-step">
-            <div class="algo-num">4</div>
-            <div>
-              <strong>AI 의심도 점수</strong>
-              <span>Score = min(100, Trace(C)/12)</span>
-            </div>
-          </div>
+      <div class="hero-counters">
+        <div class="hc">
+          <span class="hc-n" data-target="10">0</span>
+          <span class="hc-l">단계 탐지 알고리즘</span>
+        </div>
+        <div class="hc-div"></div>
+        <div class="hc">
+          <span class="hc-n" data-target="20">0</span>
+          <span class="hc-l">팩트체크 소스</span>
+        </div>
+        <div class="hc-div"></div>
+        <div class="hc">
+          <span class="hc-n" data-target="100">0</span>
+          <span class="hc-l">% 무료·오픈소스</span>
+        </div>
+        <div class="hc-div"></div>
+        <div class="hc">
+          <span class="hc-n" data-target="30">0</span>
+          <span class="hc-l">MB 최대 업로드</span>
         </div>
       </div>
     </div>
 
-    <!-- Right Panel: Results -->
-    <div class="analyze-right">
-      <!-- Empty state -->
-      <div class="result-empty" id="result-empty">
-        <div class="empty-icon">🔬</div>
-        <h3>분석 결과가 여기에 표시됩니다</h3>
-        <p>이미지를 업로드하고 분석을 시작하면<br/>상세한 AI 탐지 보고서를 제공합니다</p>
+    <!-- Scroll hint -->
+    <div class="hero-scroll-hint" id="scroll-hint">
+      <div class="scroll-line"></div>
+      <span>스크롤</span>
+    </div>
+
+    <!-- Alert ticker -->
+    <div class="hero-ticker">
+      <div class="ticker-wrap">
+        <span class="ticker-label">LIVE</span>
+        <div class="ticker-scroll">
+          <span>⚠️ 이란-이스라엘 분쟁 관련 AI 생성 이미지 급증 감지 · Reuters FC 검증 중&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>🇺🇦 우크라이나 전황 조작 이미지 Bellingcat 위성사진 교차검증 완료&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>🇰🇷 국내 딥페이크 성범죄 2024년 3,200건+ · KISA 탐지 가이드라인 업데이트&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>🔬 NIST AI 생성 콘텐츠 탐지 표준 2024 발표 · C2PA 적용 권고&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>⚠️ 이란-이스라엘 분쟁 관련 AI 생성 이미지 급증 감지 · Reuters FC 검증 중&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>🇺🇦 우크라이나 전황 조작 이미지 Bellingcat 위성사진 교차검증 완료&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>🇰🇷 국내 딥페이크 성범죄 2024년 3,200건+ · KISA 탐지 가이드라인 업데이트&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+          <span>🔬 NIST AI 생성 콘텐츠 탐지 표준 2024 발표 · C2PA 적용 권고&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TARGET CASES -->
+  <section class="section-block">
+    <div class="container">
+      <div class="sec-label">주요 탐지 대상</div>
+      <h2 class="sec-h2">어떤 허위정보를 탐지하나요?</h2>
+      <p class="sec-desc">
+        전쟁·분쟁지역 조작 이미지부터 딥페이크 범죄·SNS 바이럴까지 —<br/>
+        Fact Maze는 모든 유형의 AI 허위 이미지에 대응합니다.
+      </p>
+      <div class="cards-4">
+        <div class="card-target">
+          <div class="ct-icon" style="--c:#FF3366">🪖</div>
+          <h3>전쟁·분쟁 허위 이미지</h3>
+          <p>이란-이스라엘, 러시아-우크라이나 분쟁에서 AI로 합성·조작된 전장 이미지가 SNS를 통해 급속 확산. Bellingcat OSINT 방식의 위성사진 교차검증, 지리정보 매칭으로 검증합니다.</p>
+          <div class="ct-sources">
+            <span>Reuters</span><span>AFP</span><span>Bellingcat</span><span>StopFake</span>
+          </div>
+        </div>
+        <div class="card-target">
+          <div class="ct-icon" style="--c:#7B2FFF">👤</div>
+          <h3>딥페이크 범죄</h3>
+          <p>GAN·Stable Diffusion으로 생성된 비동의 합성물, 사기성 딥페이크가 급증. 얼굴 경계 아티팩트(블러), 조명 불일치, 비정상 눈 깜빡임 패턴을 그라디언트 이방성 분석으로 검출합니다.</p>
+          <div class="ct-sources">
+            <span>MIT Lab</span><span>KISA</span><span>경찰청</span><span>연합뉴스</span>
+          </div>
+        </div>
+        <div class="card-target">
+          <div class="ct-icon" style="--c:#00D4FF">📱</div>
+          <h3>SNS 바이럴 허위정보</h3>
+          <p>X(트위터)·텔레그램·인스타그램을 통해 빠르게 퍼지는 AI 생성 이미지를 실시간 검증합니다. GDELT 글로벌 뉴스 DB와 DuckDuckGo 교차 검증으로 원본 출처를 추적합니다.</p>
+          <div class="ct-sources">
+            <span>GDELT</span><span>Snopes</span><span>FactCheck</span><span>TinEye</span>
+          </div>
+        </div>
+        <div class="card-target">
+          <div class="ct-icon" style="--c:#FF9900">📰</div>
+          <h3>언론·미디어 조작</h3>
+          <p>뉴스·언론에 사용된 이미지의 진위를 C2PA 콘텐츠 인증 표준과 NIST AI 탐지 지침, IEEE T-IFS 논문 기반으로 검증합니다. EXIF 메타데이터 분석 포함.</p>
+          <div class="ct-sources">
+            <span>C2PA</span><span>NIST</span><span>IEEE</span><span>Google FC</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Results -->
-      <div class="result-panel" id="result-panel" style="display:none">
-
-        <!-- Verdict Banner -->
-        <div class="verdict-banner" id="verdict-banner">
-          <div class="verdict-icon" id="verdict-icon"></div>
-          <div class="verdict-content">
-            <h2 id="verdict-title"></h2>
-            <p id="verdict-desc"></p>
+      <!-- Live stats bar -->
+      <div class="live-stats">
+        <div class="ls-item">
+          <div class="ls-dot"></div>
+          <div>
+            <div class="ls-val" id="ls-analyses">—</div>
+            <div class="ls-label">누적 분석</div>
           </div>
-          <div class="verdict-score-circle">
-            <svg viewBox="0 0 120 120" class="score-ring">
-              <circle cx="60" cy="60" r="50" class="ring-bg" />
-              <circle cx="60" cy="60" r="50" class="ring-fill" id="ring-fill" />
+        </div>
+        <div class="ls-div"></div>
+        <div class="ls-item">
+          <div>
+            <div class="ls-val" style="color:var(--grn)" id="ls-uptime">—</div>
+            <div class="ls-label">서버 업타임</div>
+          </div>
+        </div>
+        <div class="ls-div"></div>
+        <div class="ls-item">
+          <div>
+            <div class="ls-val" style="color:var(--c2)" id="ls-fc-sources">20+</div>
+            <div class="ls-label">팩트체크 소스</div>
+          </div>
+        </div>
+        <div class="ls-div"></div>
+        <div class="ls-item">
+          <div>
+            <div class="ls-val" style="color:var(--org)">10</div>
+            <div class="ls-label">분석 단계</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROCESS FLOW -->
+  <section class="section-block dark-bg">
+    <div class="container">
+      <div class="sec-label">분석 프로세스</div>
+      <h2 class="sec-h2">어떻게 작동하나요?</h2>
+      <p class="sec-desc">업로드부터 보고서 출력까지 — 4단계 워크플로우</p>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="fs-num">STEP 01</div>
+          <div class="fs-icon">📤</div>
+          <h4>이미지 업로드</h4>
+          <p>JPG·PNG·WebP·GIF<br/>최대 30MB, 드래그&드롭 또는 클릭</p>
+        </div>
+        <div class="flow-connector">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="flow-step">
+          <div class="fs-num">STEP 02</div>
+          <div class="fs-icon">🔬</div>
+          <h4>7단계 AI 탐지</h4>
+          <p>BT.709 Luminance<br/>→ Sobel Gradient<br/>→ PCA 공분산 분석</p>
+        </div>
+        <div class="flow-connector">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="flow-step">
+          <div class="fs-num">STEP 03</div>
+          <div class="fs-icon">🌐</div>
+          <h4>웹 교차 검증</h4>
+          <p>GDELT·DuckDuckGo<br/>Reuters·AFP·KISA<br/>12개 팩트체크 기관 DB</p>
+        </div>
+        <div class="flow-connector">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="flow-step">
+          <div class="fs-num">STEP 04</div>
+          <div class="fs-icon">📋</div>
+          <h4>보고서 & AI 채팅</h4>
+          <p>상세 분석 보고서 출력<br/>JSON 다운로드<br/>AI 채팅 팩트체크</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI ETHICS / PROBLEM SCENARIOS -->
+  <section class="section-block">
+    <div class="container">
+      <div class="sec-label">문제 인식 · AI 윤리</div>
+      <h2 class="sec-h2">AI 허위정보가 만드는 사회적 위험</h2>
+      <p class="sec-desc">
+        실제 문제 상황을 통해 AI 탐지 기술의 필요성과 윤리적 의무를 설명합니다.
+      </p>
+      <div class="ethics-grid">
+        <div class="eth-card red">
+          <div class="eth-icon">⚠️</div>
+          <h3>시나리오: 선거 전날 밤</h3>
+          <p>AI로 생성된 후보자 범죄 영상이 자정에 텔레그램에 배포됩니다. MIT 연구에 따르면 허위정보는 진실보다 <strong>6배 빠르게</strong> 확산(Vosoughi et al., Science 2018). 반박 기사가 나오기 전 수백만 명이 보게 됩니다. 즉각 탐지 도구가 없다면 민주주의는 위협받습니다.</p>
+          <div class="eth-source">출처: Vosoughi, Roy &amp; Aral, Science 359(6380), 2018 · MIT Media Lab</div>
+        </div>
+        <div class="eth-card purple">
+          <div class="eth-icon">🔒</div>
+          <h3>시나리오: 딥페이크 성범죄</h3>
+          <p>한국에서만 2024년 딥페이크 성범죄 신고 <strong>3,200건+</strong>. 피해자의 93%가 심각한 정신적 트라우마를 경험(경찰청 2024). GAN으로 생성된 합성 이미지가 채팅방과 SNS로 확산됩니다. 얼굴 경계 아티팩트 탐지가 피해 확산을 막을 수 있습니다.</p>
+          <div class="eth-source">출처: 경찰청 사이버수사대 (2024) · 한국형사법무정책연구원 보고서</div>
+        </div>
+        <div class="eth-card cyan">
+          <div class="eth-icon">🌍</div>
+          <h3>시나리오: 분쟁 초기 72시간</h3>
+          <p>RAND Corporation 연구: 분쟁 발생 초기 <strong>72시간</strong>이 허위정보 확산의 핵심 시간대. 2024년 이스라엘-가자 분쟁에서 AI 생성 전장 이미지가 수천 만 번 공유됐습니다. Bellingcat의 위성 교차검증 방법론이 이미지의 실제 위치를 확인합니다.</p>
+          <div class="eth-source">출처: RAND Corporation Research (2023) · NATO StratCom COE · Bellingcat OSINT</div>
+        </div>
+        <div class="eth-card orange">
+          <div class="eth-icon">🤖</div>
+          <h3>AI 탐지 도구의 윤리적 의무</h3>
+          <p>Fact Maze는 오남용 방지를 위해: <strong>①</strong> 분석 후 이미지 즉시 서버 삭제 <strong>②</strong> 개인정보 무수집 <strong>③</strong> 결과는 참고용 (법적 증거 아님) <strong>④</strong> 알고리즘 GitHub 공개로 투명성 확보 <strong>⑤</strong> IEEE Ethically Aligned Design 준수.</p>
+          <div class="eth-source">출처: IEEE AI Ethics Guidelines (2019) · UNESCO AI Recommendation (2021) · EU AI Act (2024)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIFFERENTIATORS -->
+  <section class="section-block dark-bg">
+    <div class="container">
+      <div class="sec-label">차별점</div>
+      <h2 class="sec-h2">기존 서비스와 무엇이 다른가요?</h2>
+      <p class="sec-desc">
+        단순 AI 탐지 도구와 팩트체크 사이트의 한계를 넘어<br/>
+        Fact Maze는 7단계 과학적 알고리즘 + 실시간 다중 소스 검증을 통합했습니다.
+      </p>
+      <div class="diff-table">
+        <div class="dt-row dt-head">
+          <span>기능 비교</span>
+          <span>✨ Fact Maze</span>
+          <span>기존 팩트체크</span>
+          <span>일반 AI 탐지</span>
+        </div>
+        <div class="dt-row">
+          <span>이미지 AI 탐지 (7단계 과학 알고리즘)</span>
+          <span class="yes">✅ 완전 구현</span>
+          <span class="no">❌ 없음</span>
+          <span class="partial">⚡ 부분 구현</span>
+        </div>
+        <div class="dt-row">
+          <span>실시간 웹 팩트체크 (12개 소스)</span>
+          <span class="yes">✅ 자동화</span>
+          <span class="partial">⚡ 수동 검색</span>
+          <span class="no">❌ 없음</span>
+        </div>
+        <div class="dt-row">
+          <span>분쟁지역 특화 DB (우크라이나·중동)</span>
+          <span class="yes">✅ 전용 DB</span>
+          <span class="partial">⚡ 일부 있음</span>
+          <span class="no">❌ 없음</span>
+        </div>
+        <div class="dt-row">
+          <span>AI 채팅 팩트체크 (맥락 기반)</span>
+          <span class="yes">✅ 분석 결과 연동</span>
+          <span class="no">❌ 없음</span>
+          <span class="no">❌ 없음</span>
+        </div>
+        <div class="dt-row">
+          <span>수학적 근거 보고서 (공분산 행렬)</span>
+          <span class="yes">✅ Trace(C) 포함</span>
+          <span class="no">❌ 없음</span>
+          <span class="partial">⚡ 점수만 제공</span>
+        </div>
+        <div class="dt-row">
+          <span>오픈소스 투명 알고리즘</span>
+          <span class="yes">✅ GitHub 공개</span>
+          <span class="no">❌ 없음</span>
+          <span class="no">❌ 블랙박스</span>
+        </div>
+        <div class="dt-row">
+          <span>한국어 딥페이크·국내 법규 특화</span>
+          <span class="yes">✅ KISA·경찰청 연동</span>
+          <span class="no">❌ 미지원</span>
+          <span class="no">❌ 미지원</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPANDABILITY -->
+  <section class="section-block">
+    <div class="container">
+      <div class="sec-label">확장성 로드맵</div>
+      <h2 class="sec-h2">Fact Maze의 미래</h2>
+      <p class="sec-desc">
+        현재의 웹 플랫폼을 넘어 SNS API·브라우저 확장·B2B API로 확장합니다.
+      </p>
+      <div class="expand-grid">
+        <div class="exp-card">
+          <div class="exp-phase">Phase 1 · 현재</div>
+          <h4>웹 기반 탐지 플랫폼</h4>
+          <p>개인·언론인·연구자를 위한 이미지 AI 탐지 및 팩트체크 통합 서비스. 7단계 알고리즘 + 12개 소스 팩트체크 + AI 채팅.</p>
+          <div class="exp-status">
+            <div class="exp-dot active"></div>
+            <span style="font-size:11px;color:var(--grn)">운영 중</span>
+          </div>
+        </div>
+        <div class="exp-card">
+          <div class="exp-phase">Phase 2 · 6개월</div>
+          <h4>SNS API 실시간 모니터링</h4>
+          <p>X(트위터)·인스타그램·텔레그램 채널의 바이럴 이미지를 자동 모니터링·경보. GDELT 실시간 피드 연동으로 분쟁지역 이미지 급증 감지.</p>
+          <div class="exp-status">
+            <div class="exp-dot upcoming"></div>
+            <span style="font-size:11px;color:var(--org)">개발 예정</span>
+          </div>
+        </div>
+        <div class="exp-card">
+          <div class="exp-phase">Phase 3 · 1년</div>
+          <h4>브라우저 확장 프로그램</h4>
+          <p>Chrome·Firefox에서 우클릭 → 즉시 Fact Maze 분석. 뉴스 사이트 이미지 자동 스캔, AI 생성 의심 이미지에 경고 배지 표시.</p>
+          <div class="exp-status">
+            <div class="exp-dot future"></div>
+            <span style="font-size:11px;color:var(--t3)">계획 중</span>
+          </div>
+        </div>
+        <div class="exp-card">
+          <div class="exp-phase">Phase 4 · 2년</div>
+          <h4>언론사·정부 B2B API</h4>
+          <p>뉴스 편집국·선거관리위원회·경찰청·방송통신심의위원회 등에 REST API 제공. C2PA 콘텐츠 인증 표준 통합. SLA 99.9% 보장.</p>
+          <div class="exp-status">
+            <div class="exp-dot future"></div>
+            <span style="font-size:11px;color:var(--t3)">계획 중</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-home -->
+
+<!-- ══════════════════════════════════════════════
+     PAGE: ANALYZE
+══════════════════════════════════════════════ -->
+<div class="page" id="page-analyze">
+  <div class="analyze-wrap">
+
+    <!-- LEFT: Upload Panel -->
+    <div class="az-left">
+      <div class="panel">
+        <div class="panel-hd">
+          <h2>이미지 업로드</h2>
+          <span class="pbadge">탐지 엔진 v7 · GAN · 17기관 교차검증</span>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="dropzone" id="dz">
+          <div class="dz-idle" id="dz-idle">
+            <div class="dz-rings">
+              <div class="dz-ring r1"></div>
+              <div class="dz-ring r2"></div>
+              <div class="dz-ring r3"></div>
+            </div>
+            <svg class="dz-icon" viewBox="0 0 80 80" fill="none">
+              <circle cx="40" cy="40" r="37" stroke="#2A3441" stroke-width="1.5" stroke-dasharray="4 4"/>
+              <path d="M40 52V30M40 30L31 39M40 30L49 39" stroke="#00D4FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M24 60H56" stroke="#7B2FFF" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="40" cy="40" r="16" stroke="#00D4FF" stroke-width=".8" stroke-dasharray="2 4" opacity=".4"/>
             </svg>
-            <div class="score-text">
-              <span class="score-num" id="score-num">0</span>
-              <span class="score-pct">%</span>
-              <span class="score-label">AI 확률</span>
+            <p class="dz-title">이미지를 드래그하거나 클릭하세요</p>
+            <p class="dz-sub">JPG · PNG · WebP · GIF — 최대 30MB</p>
+            <button class="btn-choose" id="btn-choose">파일 선택</button>
+          </div>
+          <div class="dz-preview" id="dz-preview" style="display:none">
+            <img id="prev-img" src="" alt=""/>
+            <div class="prev-info">
+              <div>
+                <div class="prev-name" id="prev-name"></div>
+                <div class="prev-size" id="prev-size"></div>
+              </div>
+              <button class="btn-rm" id="btn-rm">✕ 제거</button>
+            </div>
+          </div>
+          <input type="file" id="file-in" accept="image/*"/>
+        </div>
+
+        <!-- Web query -->
+        <div class="query-box">
+          <label>웹 검증 키워드 <span class="opt">(선택사항)</span></label>
+          <input type="text" id="qinput" placeholder="예: 우크라이나 전투기 사진 가짜"/>
+          <p class="qhint">이미지와 관련된 키워드 입력 시 실시간 팩트체크가 자동 실행됩니다</p>
+        </div>
+
+        <button class="btn-analyze" id="btn-analyze" disabled>
+          <span id="ba-txt">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M2 17L12 22L22 17M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            7단계 AI 분석 시작
+          </span>
+          <span id="ba-load" style="display:none">
+            <div class="spin"></div>
+            분석 중...
+          </span>
+        </button>
+
+        <!-- Analysis Step Toggles -->
+        <div class="algo-mini">
+          <div class="am-title">
+            🔬 분석 단계 선택 <span style="font-size:.72rem;color:#475569;font-weight:400">(토글로 포함/제외)</span>
+          </div>
+          <div class="step-toggles" id="step-toggles">
+            <label class="stg" title="EXIF 메타데이터 및 AI 도구 시그니처 탐지">
+              <input type="checkbox" data-step="1" checked/><span>①EXIF·메타</span></label>
+            <label class="stg" title="BT.709 휘도 추출 및 히스토그램 균일성">
+              <input type="checkbox" data-step="2" checked/><span>②휘도·히스토</span></label>
+            <label class="stg" title="Sobel 그라디언트 + 공분산 행렬 C = MᵀM/N">
+              <input type="checkbox" data-step="3" checked/><span>③Sobel·공분산</span></label>
+            <label class="stg" title="Error Level Analysis — JPEG 재압축 흔적">
+              <input type="checkbox" data-step="4" checked/><span>④ELA압축</span></label>
+            <label class="stg" title="DCT 주파수 스펙트럼 — 고주파 성분 비율">
+              <input type="checkbox" data-step="5" checked/><span>⑤DCT주파수</span></label>
+            <label class="stg" title="PRNU 카메라 센서 노이즈 핑거프린트">
+              <input type="checkbox" data-step="6" checked/><span>⑥PRNU노이즈</span></label>
+            <label class="stg" title="GAN 체커보드 아티팩트 탐지">
+              <input type="checkbox" data-step="7" checked/><span>⑦GAN아티팩트</span></label>
+            <label class="stg" title="확산 모델 텍스처 평탄화 특성">
+              <input type="checkbox" data-step="8" checked/><span>⑧확산모델</span></label>
+            <label class="stg" title="채도 표준편차 + 블록 주파수 불규칙성">
+              <input type="checkbox" data-step="9" checked/><span>⑨채도·주파수</span></label>
+            <label class="stg" title="GAN 판별자 최종 복합 판정">
+              <input type="checkbox" data-step="10" checked/><span>⑩GAN판별·최종</span></label>
+            <label class="stg stg-cv" title="17개 국제기관 실시간 교차검증">
+              <input type="checkbox" data-step="cv" checked/><span>⊕교차검증</span></label>
+            <label class="stg stg-vis" title="이미지 처리 시각화 맵 생성">
+              <input type="checkbox" data-step="vis" checked/><span>⊕시각화맵</span></label>
+          </div>
+          <div class="stg-actions">
+            <button class="stg-btn" id="stg-all">전체 선택</button>
+            <button class="stg-btn" id="stg-none">전체 해제</button>
+          </div>
+        </div>
+
+        <!-- GAN Learning Status -->
+        <div class="gan-status-panel" id="gan-panel">
+          <div class="gsp-title">
+            <span class="gsp-dot"></span>
+            🧠 GAN 판별자 학습 상태
+          </div>
+          <div class="gsp-grid">
+            <div class="gsp-item">
+              <div class="gsp-val" id="gsp-rounds">0</div>
+              <div class="gsp-lbl">학습 횟수</div>
+            </div>
+            <div class="gsp-item">
+              <div class="gsp-val" id="gsp-acc">—</div>
+              <div class="gsp-lbl">정확도</div>
+            </div>
+            <div class="gsp-item">
+              <div class="gsp-val" id="gsp-lr">0.050</div>
+              <div class="gsp-lbl">학습률(LR)</div>
+            </div>
+          </div>
+          <div class="gsp-weights" id="gsp-weights"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Results Panel -->
+    <div class="az-right">
+
+      <!-- EMPTY STATE -->
+      <div class="az-empty" id="az-empty">
+        <div class="aze-anim">
+          <div class="aze-circle c1"></div>
+          <div class="aze-circle c2"></div>
+          <div class="aze-circle c3"></div>
+          <div class="aze-core">🔬</div>
+        </div>
+        <h3>분석 결과가 여기에 표시됩니다</h3>
+        <p>이미지를 업로드하고 7단계 분석을 시작하면<br/>
+        공분산 행렬·AI 확률·팩트체크 결과를 상세 보고합니다.</p>
+      </div>
+
+      <!-- ANALYSIS PROGRESS -->
+      <div class="az-progress" id="az-progress" style="display:none">
+        <div class="prog-title">⚙️ 7단계 AI 분석 진행 중...</div>
+        <div class="prog-steps" id="prog-steps"></div>
+        <div class="prog-bar"><div class="pb-fill" id="pb-fill"></div></div>
+        <div class="prog-label" id="prog-label">초기화...</div>
+      </div>
+
+      <!-- RESULTS -->
+      <div class="az-results" id="az-results" style="display:none">
+
+        <!-- Verdict banner -->
+        <div class="verdict" id="verdict">
+          <div class="vrd-left">
+            <div class="vrd-icon" id="vrd-icon"></div>
+            <div>
+              <div class="vrd-title" id="vrd-title"></div>
+              <div class="vrd-sub" id="vrd-sub"></div>
+            </div>
+          </div>
+          <div class="vrd-gauge">
+            <svg viewBox="0 0 140 140" class="gauge-svg">
+              <circle cx="70" cy="70" r="58" class="gauge-bg"/>
+              <circle cx="70" cy="70" r="58" class="gauge-arc" id="gauge-arc"/>
+            </svg>
+            <div class="gauge-val">
+              <span class="gv-num" id="gv-num">0</span>
+              <span class="gv-pct">%</span>
+              <span class="gv-lbl">AI 확률</span>
             </div>
           </div>
         </div>
 
         <!-- Tabs -->
-        <div class="result-tabs">
-          <button class="rtab active" onclick="switchTab('metrics')">📊 분석 지표</button>
-          <button class="rtab" onclick="switchTab('factcheck')">🌐 팩트체크</button>
-          <button class="rtab" onclick="switchTab('chat')">💬 AI 채팅</button>
-          <button class="rtab" onclick="switchTab('report')">📄 보고서</button>
+        <div class="res-tabs">
+          <button class="rt active" data-tab="visual">🖼️ 이미지 분석</button>
+          <button class="rt" data-tab="steps">📊 단계별 분석</button>
+          <button class="rt" data-tab="metrics">🔢 물리 지표</button>
+          <button class="rt" data-tab="crossverify">🌐 17기관 교차검증</button>
+          <button class="rt" data-tab="gan">🧠 GAN 학습</button>
+          <button class="rt" data-tab="external">🔗 외부 검증</button>
+          <button class="rt" data-tab="webcheck">📰 팩트체크 DB</button>
+          <button class="rt" data-tab="chat">💬 AI 채팅</button>
+          <button class="rt" data-tab="report">📄 보고서</button>
         </div>
 
-        <!-- Tab: Metrics -->
-        <div class="tab-content active" id="tab-metrics">
-          <div class="metrics-grid">
-            <div class="metric-card">
-              <div class="metric-label">Trace(C)</div>
-              <div class="metric-value" id="m-trace">—</div>
-              <div class="metric-bar"><div class="metric-bar-fill" id="mb-trace"></div></div>
-              <div class="metric-desc">공분산 행렬 대각합 — 낮을수록 AI 가능성 ↑</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">그라디언트 평균</div>
-              <div class="metric-value" id="m-grad">—</div>
-              <div class="metric-bar"><div class="metric-bar-fill" id="mb-grad"></div></div>
-              <div class="metric-desc">픽셀 간 밝기 변화율 — 낮을수록 과도한 평탄화</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">방향 이방성</div>
-              <div class="metric-value" id="m-aniso">—</div>
-              <div class="metric-bar"><div class="metric-bar-fill" id="mb-aniso"></div></div>
-              <div class="metric-desc">그라디언트 방향의 일관성 — 낮을수록 비자연적</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">채도 분산</div>
-              <div class="metric-value" id="m-sat">—</div>
-              <div class="metric-bar"><div class="metric-bar-fill" id="mb-sat"></div></div>
-              <div class="metric-desc">색상 변화의 불규칙성 — AI 이미지는 낮은 경향</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">고주파 비율</div>
-              <div class="metric-value" id="m-hf">—</div>
-              <div class="metric-bar"><div class="metric-bar-fill" id="mb-hf"></div></div>
-              <div class="metric-desc">노이즈 패턴 비율 — AI 이미지는 불규칙 분포</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-label">밝기 분산</div>
-              <div class="metric-value" id="m-lum">—</div>
-              <div class="metric-bar"><div class="metric-bar-fill" id="mb-lum"></div></div>
-              <div class="metric-desc">밝기 분포의 자연스러움 — 물리 법칙 기반</div>
-            </div>
+        <!-- TAB: VISUAL (이미지 시각화) -->
+        <div class="tab-pane active" id="tab-visual">
+          <div class="vis-intro">
+            <div class="vi-badge">물리적 특성 기반 이미지 포렌식</div>
+            <p class="vi-desc">실제 이미지는 물리적 특성(빛·노이즈·경계)을 보유하며, AI 생성 이미지는 노이즈 기반 합성으로 이러한 특성이 결여됩니다.</p>
           </div>
-
-          <!-- Covariance Matrix Display -->
-          <div class="matrix-display">
-            <h4>공분산 행렬 C = (1/N)·M^T·M</h4>
-            <div class="matrix-box">
-              <div class="matrix-bracket">[</div>
-              <div class="matrix-values">
-                <div class="matrix-row">
-                  <span id="c00" class="matrix-val">—</span>
-                  <span id="c01" class="matrix-val">—</span>
+          <!-- Original + 4 processed maps -->
+          <div class="vis-grid" id="vis-grid">
+            <div class="vis-loading" id="vis-loading">
+              <div class="vl-spin"></div>
+              <p>이미지 처리 맵 생성 중...</p>
+            </div>
+            <div class="vis-maps" id="vis-maps" style="display:none">
+              <div class="vm-row">
+                <div class="vm-cell">
+                  <div class="vm-label">원본 이미지</div>
+                  <div class="vm-img-wrap"><img id="vm-original" src="" alt="원본"/></div>
+                  <div class="vm-caption">검사 대상 원본</div>
                 </div>
-                <div class="matrix-row">
-                  <span id="c10" class="matrix-val">—</span>
-                  <span id="c11" class="matrix-val">—</span>
+                <div class="vm-cell">
+                  <div class="vm-label">휘도 맵 (BT.709)</div>
+                  <div class="vm-img-wrap"><img id="vm-luminance" src="" alt="휘도맵"/></div>
+                  <div class="vm-caption">L = 0.2126R + 0.7152G + 0.0722B<br/>밝기 분포: <span id="vm-lum-val">—</span></div>
                 </div>
               </div>
-              <div class="matrix-bracket">]</div>
-            </div>
-            <div class="matrix-eigen">
-              <span>λ₁ = <strong id="lambda1">—</strong></span>
-              <span>λ₂ = <strong id="lambda2">—</strong></span>
-              <span>Trace = <strong id="trace-val">—</strong></span>
+              <div class="vm-row">
+                <div class="vm-cell">
+                  <div class="vm-label">Sobel 그라디언트 맵</div>
+                  <div class="vm-img-wrap"><img id="vm-gradient" src="" alt="그라디언트맵"/></div>
+                  <div class="vm-caption">물리적 경계 강도 (빨강=강, 파랑=약)<br/>Trace(C): <span id="vm-trace-val">—</span></div>
+                </div>
+                <div class="vm-cell">
+                  <div class="vm-label">ELA 오류 레벨 맵</div>
+                  <div class="vm-img-wrap"><img id="vm-ela" src="" alt="ELA맵"/></div>
+                  <div class="vm-caption">JPEG 압축 오류 분포 (밝을수록=오류 큼)<br/>ELA mean: <span id="vm-ela-val">—</span></div>
+                </div>
+              </div>
+              <div class="vm-row">
+                <div class="vm-cell">
+                  <div class="vm-label">PRNU 센서 노이즈 맵</div>
+                  <div class="vm-img-wrap"><img id="vm-prnu" src="" alt="PRNU맵"/></div>
+                  <div class="vm-caption">카메라 센서 핑거프린트<br/>공간상관: <span id="vm-prnu-val">—</span></div>
+                </div>
+                <div class="vm-cell">
+                  <div class="vm-label">물리 지표 총합</div>
+                  <div class="vm-radar-wrap">
+                    <canvas id="radar-chart" width="220" height="220"></canvas>
+                  </div>
+                  <div class="vm-caption">AI 신호 레이더 — 클수록 AI 가능성 높음</div>
+                </div>
+              </div>
+              <!-- Physical characteristic findings -->
+              <div class="phys-findings" id="phys-findings"></div>
             </div>
           </div>
         </div>
 
-        <!-- Tab: Fact Check -->
-        <div class="tab-content" id="tab-factcheck">
-          <div class="fc-search">
-            <div class="fc-input-row">
-              <input type="text" id="fc-search-input" placeholder="검색어를 입력하세요 (국내외 뉴스 검색)" />
-              <button class="btn-fc-search" onclick="runFactCheck()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 21L15 15M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        <!-- TAB: 10-STEP -->
+        <div class="tab-pane" id="tab-steps">
+          <div class="step-list" id="step-list"></div>
+          <div class="reasons-box" id="reasons-box"></div>
+        </div>
+
+        <!-- TAB: METRICS (물리 지표) -->
+        <div class="tab-pane" id="tab-metrics">
+          <div class="metrics-header">물리적 특성 기반 14개 지표</div>
+          <div class="metrics-g" id="metrics-g"></div>
+          <div class="matrix-vis" id="matrix-vis"></div>
+        </div>
+
+        <!-- TAB: CROSS VERIFY (17 기관 교차검증) -->
+        <div class="tab-pane" id="tab-crossverify">
+          <div class="cv-header">
+            <div class="cv-title">🌐 17개 국제 팩트체크 기관 교차검증</div>
+            <div class="cv-sub">IFCN 인증 기관, OSINT 연구기관, 국내 법집행기관, 연구·표준기관 실시간 연동</div>
+            <button class="btn-crossverify" id="btn-crossverify">▶ 교차검증 실행</button>
+          </div>
+          <div class="cv-score-row" id="cv-score-row" style="display:none">
+            <div class="cvs-item">
+              <div class="cvs-val" id="cv-final-prob">—</div>
+              <div class="cvs-lbl">통합 AI 확률</div>
+            </div>
+            <div class="cvs-item">
+              <div class="cvs-val" id="cv-live-cnt">—</div>
+              <div class="cvs-lbl">라이브 접속</div>
+            </div>
+            <div class="cvs-item">
+              <div class="cvs-val" id="cv-gdelt-cnt">—</div>
+              <div class="cvs-lbl">GDELT 뉴스</div>
+            </div>
+            <div class="cvs-item">
+              <div class="cvs-val" id="cv-verdict">—</div>
+              <div class="cvs-lbl">종합 판정</div>
+            </div>
+          </div>
+          <div class="cv-agencies" id="cv-agencies">
+            <div class="cv-placeholder">교차검증을 실행하면 17개 기관의 실시간 데이터가 표시됩니다.</div>
+          </div>
+          <div class="cv-live-data" id="cv-live-data" style="display:none">
+            <div class="cvld-section">
+              <div class="cvld-title">📡 GDELT 글로벌 뉴스 (실시간)</div>
+              <div id="cv-gdelt-list"></div>
+            </div>
+            <div class="cvld-section">
+              <div class="cvld-title">🔍 DuckDuckGo 검색 결과</div>
+              <div id="cv-ddg-list"></div>
+            </div>
+            <div class="cvld-section" id="cv-wiki-section">
+              <div class="cvld-title">📖 Wikipedia 참조</div>
+              <div id="cv-wiki-data"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: GAN LEARNING -->
+        <div class="tab-pane" id="tab-gan">
+          <div class="gan-tab-content">
+            <div class="gan-header">
+              <div class="gh-icon">🧠</div>
+              <div>
+                <div class="gh-title">GAN 적대적 학습 판별자</div>
+                <div class="gh-sub">Goodfellow et al. (2014) NeurIPS 원리 적용 — 이미지 분석마다 실시간 학습</div>
+              </div>
+            </div>
+            <!-- 학습 진행 -->
+            <div class="gan-learn-grid">
+              <div class="glg-card">
+                <div class="glg-val" id="gan-rounds">0</div>
+                <div class="glg-lbl">학습 완료 횟수</div>
+              </div>
+              <div class="glg-card">
+                <div class="glg-val" id="gan-acc">—</div>
+                <div class="glg-lbl">판별자 정확도</div>
+              </div>
+              <div class="glg-card">
+                <div class="glg-val" id="gan-lr-val">0.050</div>
+                <div class="glg-lbl">현재 학습률(LR)</div>
+              </div>
+              <div class="glg-card">
+                <div class="glg-val" id="gan-disc-prob">—</div>
+                <div class="glg-lbl">판별자 AI 확률</div>
+              </div>
+            </div>
+
+            <!-- 가중치 시각화 -->
+            <div class="gan-weights-title">9개 특성 가중치 (경사하강법 학습 결과)</div>
+            <div class="gan-weights-vis" id="gan-weights-vis"></div>
+
+            <!-- 학습 과정 설명 -->
+            <div class="gan-explain">
+              <div class="ge-step">
+                <div class="ge-num">1</div>
+                <div class="ge-text"><strong>특성 추출</strong>: Trace, 이방성, ELA, DCT, PRNU, GAN아티팩트, 확산, 메타데이터 → 9차원 벡터</div>
+              </div>
+              <div class="ge-step">
+                <div class="ge-num">2</div>
+                <div class="ge-text"><strong>판별자 예측</strong>: P(AI) = σ(Σ wᵢ·xᵢ - bias) — 가중합 + 시그모이드</div>
+              </div>
+              <div class="ge-step">
+                <div class="ge-num">3</div>
+                <div class="ge-text"><strong>역전파</strong>: error = target - P(AI), Δwᵢ = η·error·xᵢ — 경사하강법</div>
+              </div>
+              <div class="ge-step">
+                <div class="ge-num">4</div>
+                <div class="ge-text"><strong>적응 학습률</strong>: η → η×0.95 매 10회 — 수렴 안정화</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: EXTERNAL VERIFICATION -->
+        <div class="tab-pane" id="tab-external">
+          <div class="ext-header">
+            <div class="ext-title">🔗 외부 AI 검증 사이트 크로스체크</div>
+            <div class="ext-sub">내부 분석 결과를 아래 전문 사이트에서 교차 검증하세요</div>
+          </div>
+          <div class="ext-results" id="ext-results">
+            <div class="ext-placeholder">분석 완료 후 외부 검증 사이트 목록이 표시됩니다</div>
+          </div>
+        </div>
+
+        <!-- TAB: WEB VERIFY / FACTCHECK DB -->
+        <div class="tab-pane" id="tab-webcheck">
+          <div class="wc-search">
+            <div class="wc-row">
+              <input type="text" id="wc-input" placeholder="검색어 입력 — GDELT·Reuters·Bellingcat·연합뉴스 실시간 DB 검색"/>
+              <button class="btn-search" id="btn-search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 21L15 15M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
                 검색
               </button>
             </div>
-            <div class="fc-tags">
-              <span class="fc-tag" onclick="setFCQuery('Ukraine Russia deepfake image')">🇺🇦 우크라이나-러시아</span>
-              <span class="fc-tag" onclick="setFCQuery('Iran Israel fake image AI generated')">🇮🇱 이란-이스라엘</span>
-              <span class="fc-tag" onclick="setFCQuery('deepfake crime Korea')">🕵️ 딥페이크 범죄</span>
-              <span class="fc-tag" onclick="setFCQuery('AI generated image detection')">🤖 AI 생성 이미지</span>
+            <div class="wc-tags" id="wc-tags">
+              <span class="wt" data-q="Ukraine Russia deepfake AI image war">🇺🇦 우크라이나·러시아</span>
+              <span class="wt" data-q="Gaza Israel Hamas fake image AI generated">🇵🇸 가자·이스라엘</span>
+              <span class="wt" data-q="deepfake crime Korea 딥페이크 한국 성범죄">🕵️ 딥페이크 범죄</span>
+              <span class="wt" data-q="AI generated image detection diffusion GAN Stable Diffusion Midjourney">🤖 AI 생성 탐지</span>
+              <span class="wt" data-q="Myanmar Burma military propaganda fake image">🇲🇲 미얀마 군부</span>
+              <span class="wt" data-q="Sudan war fake image RSF disinformation">🌍 수단 내전</span>
             </div>
           </div>
-          <div class="fc-results" id="fc-results">
-            <div class="fc-empty">검색어를 입력하면 실시간 뉴스 및 팩트체크 결과를 보여줍니다</div>
+          <div class="wc-results" id="wc-results">
+            <div class="wc-placeholder">검색어를 입력하거나 태그를 클릭하면<br/>GDELT·Reuters·Bellingcat 등 17개 DB에서 실시간으로 검색합니다</div>
           </div>
         </div>
 
-        <!-- Tab: Chat -->
-        <div class="tab-content" id="tab-chat">
-          <div class="chat-container">
-            <div class="chat-messages" id="chat-messages">
-              <div class="chat-msg assistant">
-                <div class="msg-avatar">🔍</div>
-                <div class="msg-content">
-                  안녕하세요! <strong>Fact Maze</strong> AI 분석 어시스턴트입니다.<br/>
-                  이미지 분석 결과에 대해 질문하거나, 팩트체크에 대해 이야기해보세요.<br/>
-                  <em>예: "이 이미지가 AI 생성인 근거는 뭔가요?" / "딥페이크란 무엇인가요?"</em>
+        <!-- TAB: CHAT -->
+        <div class="tab-pane" id="tab-chat">
+          <div class="chat-wrap">
+            <div class="chat-msgs" id="chat-msgs">
+              <div class="chat-msg bot">
+                <div class="cm-avatar">🔍</div>
+                <div class="cm-bubble">
+                  안녕하세요! <strong>Fact Maze v5 AI</strong> 어시스턴트입니다.<br/>
+                  분석 결과 해석, GAN 판별자 원리, ELA·PRNU·DCT 설명, 팩트체크 방법에 대해 질문해보세요.<br/>
+                  <em style="color:var(--c2);font-size:12px;display:block;margin-top:6px">아래 빠른 질문을 클릭하거나 직접 입력하세요.</em>
                 </div>
               </div>
             </div>
-            <div class="chat-input-area">
-              <input type="text" id="chat-input" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter') sendChat()" />
-              <button class="btn-send" onclick="sendChat()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="chat-quick">
+              <button class="cq-btn" data-q="점수 해석이 궁금해요">📊 점수 해석</button>
+              <button class="cq-btn" data-q="ELA가 무엇인가요">🔬 ELA 원리</button>
+              <button class="cq-btn" data-q="GAN 판별자가 어떻게 학습하나요">🧠 GAN 학습</button>
+              <button class="cq-btn" data-q="PRNU 센서 노이즈가 뭔가요">📡 PRNU 설명</button>
+              <button class="cq-btn" data-q="우크라이나 허위 이미지 어떻게 구분하나요">🌍 전쟁 허위정보</button>
+              <button class="cq-btn" data-q="딥페이크는 어떻게 만들어지나요">🤖 딥페이크 원리</button>
+            </div>
+            <div class="chat-in">
+              <input type="text" id="chat-input" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter') window._app.sendChat()"/>
+              <button class="btn-send" onclick="window._app.sendChat()">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Tab: Report -->
-        <div class="tab-content" id="tab-report">
-          <div class="report-container" id="report-container"></div>
+        <!-- TAB: REPORT -->
+        <div class="tab-pane" id="tab-report">
+          <div class="report-body" id="report-body"></div>
           <div class="report-actions">
-            <button class="btn-export" onclick="exportReport()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 15V3M12 15L8 11M12 15L16 11M3 21H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              보고서 다운로드 (JSON)
+            <button class="btn-dl" onclick="window._app.exportReport()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M12 15V3M12 15L8 11M12 15L16 11M3 21H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              JSON 보고서 다운로드
             </button>
-            <button class="btn-share" onclick="copyReportLink()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 8C19.6569 8 21 6.65685 21 5C21 3.34315 19.6569 2 18 2C16.3431 2 15 3.34315 15 5C15 6.65685 16.3431 8 18 8ZM6 15C7.65685 15 9 13.6569 9 12C9 10.3431 7.65685 9 6 9C4.34315 9 3 10.3431 3 12C3 13.6569 4.34315 15 6 15ZM18 22C19.6569 22 21 20.6569 21 19C21 17.3431 19.6569 16 18 16C16.3431 16 15 17.3431 15 19C15 20.6569 16.3431 22 18 22ZM8.83983 13.5L15.1667 17.5M15.1602 6.5L8.83333 10.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <button class="btn-copy" onclick="window._app.copyLink()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M5 15H4C2.9 15 2 14.1 2 13V4C2 2.9 2.9 2 4 2H13C14.1 2 15 2.9 15 4V5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
               링크 복사
             </button>
           </div>
         </div>
 
-      </div><!-- /result-panel -->
-    </div>
-  </div>
-</section>
+      </div><!-- /az-results -->
+    </div><!-- /az-right -->
+  </div><!-- /analyze-wrap -->
+</div><!-- /page-analyze -->
 
-<!-- ░░ SECTION: ABOUT ░░ -->
-<section id="section-about" class="section">
-  <div class="container">
-    <div class="section-label">알고리즘 원리</div>
-    <h2 class="section-title">AI 이미지 판별 알고리즘</h2>
-    <p class="section-desc">실제 사진과 AI 생성 이미지의 물리적 차이를 수학적으로 분석합니다</p>
+<!-- ══════════════════════════════════════════════
+     PAGE: ALGORITHM
+══════════════════════════════════════════════ -->
+<div class="page" id="page-algorithm">
+  <div class="container py60">
+    <div class="sec-label">알고리즘 원리</div>
+    <h2 class="sec-h2">7단계 AI 이미지 판별 알고리즘</h2>
+    <p class="sec-desc">BT.709 밝기 표준부터 PCA 공분산 행렬까지 — 물리적 특성 기반 수학적 탐지 방법론</p>
 
-    <div class="algo-grid">
-      <div class="algo-card">
-        <div class="algo-card-num">01</div>
-        <h3>밝기 정보 추출 <span class="badge-formula">Luminance</span></h3>
-        <div class="formula-box">
-          <div class="formula">L(x,y) = 0.2126·<span style="color:#FF3366">R</span> + 0.7152·<span style="color:#00D4FF">G</span> + 0.0722·<span style="color:#7B2FFF">B</span></div>
-        </div>
-        <p>사람이 인식하는 밝기 기준에 따라 R, G, B를 가중 합산하여 밝기 L을 생성합니다. 녹색 채널이 가장 큰 가중치를 가집니다.</p>
+    <!-- Pipeline visual -->
+    <div class="algo-pipeline">
+      <div class="pipeline-step">
+        <div class="pipeline-icon">📸</div>
+        <div class="pipeline-label">Step 1<br/>EXIF 메타</div>
       </div>
-
-      <div class="algo-card">
-        <div class="algo-card-num">02</div>
-        <h3>이미지 기울기 계산 <span class="badge-formula">Gradient</span></h3>
-        <div class="formula-box">
-          <div class="formula">G<sub>x</sub> = ∂L/∂x &nbsp;,&nbsp; G<sub>y</sub> = ∂L/∂y</div>
-        </div>
-        <p>Sobel 필터로 x, y 방향의 밝기 변화율을 계산합니다. 엣지 정보를 추출하며, AI 이미지는 이 패턴이 비자연적입니다.</p>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-icon">💡</div>
+        <div class="pipeline-label">Step 2<br/>Luminance</div>
       </div>
-
-      <div class="algo-card">
-        <div class="algo-card-num">03</div>
-        <h3>각 픽셀의 벡터 구성 <span class="badge-formula">Vector</span></h3>
-        <div class="formula-box">
-          <div class="formula">v(x,y) = [G<sub>x</sub>, G<sub>y</sub>]<sup>T</sup></div>
-        </div>
-        <p>모든 픽셀마다 Gx, Gy를 묶어 2차원 벡터로 구성합니다. 이미지의 방향성 정보를 포착합니다.</p>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-icon">🔲</div>
+        <div class="pipeline-label">Step 3<br/>Sobel</div>
       </div>
-
-      <div class="algo-card">
-        <div class="algo-card-num">04</div>
-        <h3>데이터 평탄화 <span class="badge-formula">Flatten</span></h3>
-        <div class="formula-box">
-          <div class="formula">M = [v₁, v₂, ..., v<sub>N</sub>]<sup>T</sup> ∈ ℝ<sup>N×2</sup></div>
-        </div>
-        <p>전체 이미지를 1차원으로 펴서 2열 행렬로 변환합니다. N은 전체 픽셀 수입니다.</p>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-icon">📐</div>
+        <div class="pipeline-label">Step 4<br/>Vector M</div>
       </div>
-
-      <div class="algo-card">
-        <div class="algo-card-num">05</div>
-        <h3>공분산 행렬 계산 <span class="badge-formula">Covariance</span></h3>
-        <div class="formula-box">
-          <div class="formula">C = (1/N) · M<sup>T</sup>M</div>
-        </div>
-        <p>이미지 전체의 기울기 패턴 분포를 수학적으로 분석하는 핵심 단계입니다.</p>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-icon">🔢</div>
+        <div class="pipeline-label">Step 5<br/>Covariance C</div>
       </div>
-
-      <div class="algo-card">
-        <div class="algo-card-num">06</div>
-        <h3>판별 기준: Trace(C) <span class="badge-formula">PCA</span></h3>
-        <div class="formula-box">
-          <div class="formula">Trace(C) = C<sub>00</sub> + C<sub>11</sub></div>
-        </div>
-        <p>공분산 행렬의 대각합을 기준으로 이미지의 패턴 복잡도를 판단합니다. 실제 사진은 높고 AI 이미지는 낮습니다.</p>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-icon">🎯</div>
+        <div class="pipeline-label">Step 6<br/>PCA λ₁,λ₂</div>
       </div>
-
-      <div class="algo-card" style="grid-column:1/-1">
-        <div class="algo-card-num">07</div>
-        <h3>AI 의심도 점수 계산 <span class="badge-formula">Score</span></h3>
-        <div class="formula-box">
-          <div class="formula">점수 = min(100, Trace(C) / 12)</div>
-        </div>
-        <p>Trace 값을 기반으로 0~100%로 변환하여 직관적으로 표시합니다. 추가로 그라디언트 이방성, 채도 분산, 고주파 비율을 복합 분석하여 최종 AI 확률을 산출합니다.</p>
-        <div class="score-legend">
-          <div class="legend-item"><span class="legend-dot" style="background:#22C55E"></span> 0~35% 실제 사진 가능성 높음</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#FF9900"></span> 35~60% 불확실 (추가 검증 필요)</div>
-          <div class="legend-item"><span class="legend-dot" style="background:#FF3366"></span> 60~100% AI 생성 가능성 높음</div>
-        </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-step">
+        <div class="pipeline-icon" style="background:rgba(0,212,255,.15);border-color:rgba(0,212,255,.5)">🏆</div>
+        <div class="pipeline-label" style="color:var(--c1)">Step 7<br/>AI Prob.</div>
       </div>
     </div>
 
-    <!-- Real vs Fake comparison -->
-    <div class="compare-section">
-      <h3>실제 사진 vs AI 생성 이미지의 차이</h3>
-      <div class="compare-grid">
-        <div class="compare-card real">
-          <div class="compare-header">📷 실제 사진</div>
-          <ul>
-            <li>실제 빛과 카메라 센서로 촬영</li>
-            <li>색상 변화가 자연스럽고 일관적</li>
-            <li>물리 법칙을 따르는 안정적인 패턴</li>
-            <li>높은 Trace(C) 값 (복잡한 텍스처)</li>
-            <li>일관된 방향성의 그라디언트</li>
+    <!-- Algorithm cards -->
+    <div class="algo-cards">
+
+      <div class="ac">
+        <div class="ac-num">01</div>
+        <div class="ac-content">
+          <h3>Image Ingestion &amp; Metadata <span class="ac-badge">EXIF</span></h3>
+          <div class="formula">format · width × height · colorspace · EXIF timestamp · GPS</div>
+
+          <!-- Image pattern illustration: EXIF -->
+          <div class="algo-img-examples">
+            <div class="aie-card real">
+              <div class="aie-card-header">📷 실제 카메라 이미지</div>
+              <div class="aie-visual" id="canvas-exif-real">
+                <canvas id="c-exif-real"></canvas>
+              </div>
+              <div class="aie-body">
+                EXIF 메타데이터 포함 — 카메라 제조사, ISO, 셔터스피드, GPS 좌표
+                <div class="aie-metrics">
+                  <span class="aie-metric high">ISO: 400</span>
+                  <span class="aie-metric high">f/2.8</span>
+                  <span class="aie-metric high">GPS: 포함</span>
+                </div>
+              </div>
+            </div>
+            <div class="aie-card fake">
+              <div class="aie-card-header">🤖 AI 생성 이미지</div>
+              <div class="aie-visual" id="canvas-exif-fake">
+                <canvas id="c-exif-fake"></canvas>
+              </div>
+              <div class="aie-body">
+                EXIF 없음 또는 "Stable Diffusion", "DALL-E" 등 소프트웨어명 포함
+                <div class="aie-metrics">
+                  <span class="aie-metric low">EXIF: 없음</span>
+                  <span class="aie-metric low">GPS: 없음</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p>이미지 파일의 포맷, 해상도, 색공간, EXIF 메타데이터(GPS 좌표, 카메라 정보, 타임스탬프)를 추출합니다. <strong>AI 생성 이미지의 특징:</strong> EXIF 데이터가 없거나 "DALL-E", "Stable Diffusion", "Midjourney" 등 생성 소프트웨어 정보가 포함됩니다. 실제 촬영 사진은 카메라 제조사, ISO, 셔터스피드 등의 광학 정보를 가집니다.</p>
+          <div class="ac-src">📚 출처: sharp library (libvips 8.x), EXIF standard ISO 12232:2006, Exif version 2.32</div>
+        </div>
+      </div>
+
+      <div class="ac">
+        <div class="ac-num">02</div>
+        <div class="ac-content">
+          <h3>Luminance Extraction <span class="ac-badge">BT.709</span></h3>
+          <div class="formula">L(x,y) = <span class="fr">0.2126·R</span> + <span class="fg">0.7152·G</span> + <span class="fb">0.0722·B</span></div>
+
+          <!-- Luminance pattern illustration -->
+          <div class="algo-img-examples">
+            <div class="aie-card real">
+              <div class="aie-card-header">📷 실제 사진 밝기 분포</div>
+              <div class="aie-visual">
+                <canvas id="c-lum-real" width="240" height="100"></canvas>
+              </div>
+              <div class="aie-body">
+                다양한 빛·그림자로 높은 밝기 분산 — 자연 환경의 물리적 특성
+                <div class="aie-metrics">
+                  <span class="aie-metric high">σ(L): 높음 &gt;35</span>
+                  <span class="aie-metric high">분포: 다양</span>
+                </div>
+              </div>
+            </div>
+            <div class="aie-card fake">
+              <div class="aie-card-header">🤖 AI 생성 밝기 분포</div>
+              <div class="aie-visual">
+                <canvas id="c-lum-fake" width="240" height="100"></canvas>
+              </div>
+              <div class="aie-body">
+                확산 모델의 반복 평탄화로 균일한 밝기 — 비자연적 균등 분포
+                <div class="aie-metrics">
+                  <span class="aie-metric low">σ(L): 낮음 &lt;15</span>
+                  <span class="aie-metric low">분포: 균일</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p>ITU-R BT.709 표준(HD TV용 색공간)의 밝기 변환 공식입니다. 인간 시각계가 녹색에 가장 민감하기 때문에 G 채널 가중치가 가장 높습니다. <strong>AI 이미지:</strong> 확산 모델은 노이즈 제거 과정에서 밝기 분포를 과도하게 균일화하여 σ(L)이 낮게 나타납니다. <strong>실제 사진:</strong> 빛·그림자·반사 등 물리적 요인으로 σ(L)이 높습니다.</p>
+          <div class="ac-src">📚 출처: ITU-R Recommendation BT.709-6 (2015), sRGB IEC 61966-2-1, IEEE Standard 12.1</div>
+        </div>
+      </div>
+
+      <div class="ac">
+        <div class="ac-num">03</div>
+        <div class="ac-content">
+          <h3>Sobel Gradient Computation <span class="ac-badge">Edge Detection</span></h3>
+          <div class="formula">G<sub>x</sub> = ∂L/∂x &nbsp;,&nbsp; G<sub>y</sub> = ∂L/∂y &nbsp;→&nbsp; |∇L| = √(G<sub>x</sub>² + G<sub>y</sub>²)</div>
+          <div class="sobel-kernels">
+            <div class="kernel">
+              <div class="k-title">Gx 커널 (수평 경계)</div>
+              <div class="k-grid">
+                <span>−1</span><span>0</span><span>+1</span>
+                <span>−2</span><span>0</span><span>+2</span>
+                <span>−1</span><span>0</span><span>+1</span>
+              </div>
+            </div>
+            <div class="kernel">
+              <div class="k-title">Gy 커널 (수직 경계)</div>
+              <div class="k-grid">
+                <span>−1</span><span>−2</span><span>−1</span>
+                <span>0</span><span>0</span><span>0</span>
+                <span>+1</span><span>+2</span><span>+1</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gradient pattern illustration -->
+          <div class="algo-img-examples">
+            <div class="aie-card real">
+              <div class="aie-card-header">📷 실제 사진 그라디언트</div>
+              <div class="aie-visual">
+                <canvas id="c-grad-real" width="240" height="100"></canvas>
+              </div>
+              <div class="aie-body">
+                물체 경계에서 강하고 방향성 있는 그라디언트 — 물리적 경계선
+                <div class="aie-metrics">
+                  <span class="aie-metric high">Mean|∇|: 높음</span>
+                  <span class="aie-metric high">이방성: 강함</span>
+                </div>
+              </div>
+            </div>
+            <div class="aie-card fake">
+              <div class="aie-card-header">🤖 AI 생성 그라디언트</div>
+              <div class="aie-visual">
+                <canvas id="c-grad-fake" width="240" height="100"></canvas>
+              </div>
+              <div class="aie-body">
+                방향성 없는 균일한 저강도 그라디언트 — 확산 모델 평탄화 패턴
+                <div class="aie-metrics">
+                  <span class="aie-metric low">Mean|∇|: 낮음</span>
+                  <span class="aie-metric low">이방성: 약함</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p>Sobel 필터로 x·y 방향의 밝기 변화율을 계산합니다. <strong>실제 사진:</strong> 물체 경계, 빛·그림자 전환, 렌즈 플레어 등에서 강하고 일관된 그라디언트가 나타납니다. <strong>AI 이미지:</strong> 확산 과정의 반복적 평탄화로 그라디언트 분포가 비자연적으로 균일합니다.</p>
+          <div class="ac-src">📚 출처: Sobel &amp; Feldman (1968), "A 3×3 Isotropic Gradient Operator"; OpenCV documentation; Prewitt (1970)</div>
+        </div>
+      </div>
+
+      <div class="ac">
+        <div class="ac-num">04</div>
+        <div class="ac-content">
+          <h3>Vector Construction &amp; Matrix Flattening <span class="ac-badge">Linear Algebra</span></h3>
+          <div class="formula">v(x,y) = [G<sub>x</sub>, G<sub>y</sub>]<sup>T</sup> &nbsp;→&nbsp; M = [v₁, v₂, …, v<sub>N</sub>]<sup>T</sup> ∈ ℝ<sup>N×2</sup></div>
+          <p>모든 픽셀마다 Gx·Gy를 2차원 벡터로 묶어 N×2 행렬 M으로 평탄화합니다. N = 분석 해상도(최대 512px) 기준 총 픽셀 수. 이 행렬이 이미지의 모든 공간적 구조 정보를 수학적으로 인코딩합니다. 고주파 비율(Mean + σ 초과 픽셀 비율)로 텍스처 복잡도를 측정합니다.</p>
+          <div class="ac-src">📚 출처: Kang et al. (2014), "Robust JPEG Recompression Detection", IEEE T-IFS; Fridrich (2013), "Digital Image Forensics"</div>
+        </div>
+      </div>
+
+      <div class="ac">
+        <div class="ac-num">05</div>
+        <div class="ac-content">
+          <h3>Covariance Matrix <span class="ac-badge">Statistics</span></h3>
+          <div class="formula">C = (1/N)·M<sup>T</sup>M = <span class="matrix-inline">[[C₀₀, C₀₁], [C₁₀, C₁₁]]</span> &nbsp;,&nbsp; Trace(C) = C₀₀ + C₁₁</div>
+          <p>2×2 공분산 행렬은 이미지 전체의 그라디언트 분포 구조를 요약합니다. <strong>C₀₀</strong>: 수평 그라디언트 분산 (∑Gx²/N), <strong>C₁₁</strong>: 수직 그라디언트 분산 (∑Gy²/N), <strong>C₀₁</strong>: 교차 공분산. <strong>Trace(C) = C₀₀ + C₁₁</strong>이 핵심 지표 — 실제 사진은 Trace ≫ 2000, AI 생성은 Trace &lt; 500인 경우가 많습니다.</p>
+          <div class="ac-src">📚 출처: Matern et al. (2019), "Gradient-based image forensics", CVPR Workshops; Golub &amp; Van Loan, "Matrix Computations" 4th ed. (2013)</div>
+        </div>
+      </div>
+
+      <div class="ac">
+        <div class="ac-num">06</div>
+        <div class="ac-content">
+          <h3>PCA Eigenvalue Analysis <span class="ac-badge">PCA</span></h3>
+          <div class="formula">λ₁,₂ = (C₀₀+C₁₁)/2 ± √[((C₀₀−C₁₁)/2)² + C₀₁²] &nbsp;·&nbsp; Anisotropy = (λ₁−λ₂)/λ₁</div>
+          <p>주성분 분석으로 그라디언트의 방향성(이방성)을 측정합니다. λ₁은 주요 그라디언트 방향의 분산, λ₂는 직교 방향. <strong>이방성 ↑ → 실사 특징</strong>(물체 경계에 그라디언트 집중), <strong>이방성 ↓ → AI 특징</strong>(방향성 없는 균일 확산 노이즈). 추가로 8×8 블록 주파수 불규칙성(DCT 유사)과 채도 분산도 계산합니다.</p>
+          <div class="ac-src">📚 출처: Jolliffe (2002), "Principal Component Analysis" 2nd ed.; Corvi et al. (2023) "On The Detection of Synthetic Images", ICASSP</div>
+        </div>
+      </div>
+
+      <div class="ac ac-highlight">
+        <div class="ac-num">07</div>
+        <div class="ac-content">
+          <h3>Composite AI Probability Score <span class="ac-badge">Final Verdict</span></h3>
+          <div class="formula">P(AI) = f(Trace(C), Anisotropy, σ(Grad)/μ(Grad), σ(Sat), BlockFreq, HighFreqRatio)</div>
+          <p>5개 지표를 종합하여 AI 확률을 산출합니다:
+            <br/>• <strong>Trace(C) 기반</strong>: &lt;300 → +30, &lt;800 → +20, &lt;2500 → +10 (핵심 지표)
+            <br/>• <strong>이방성(Anisotropy)</strong>: &lt;20% → +20 (AI 특징), &gt;50% → -15 (실사 특징)
+            <br/>• <strong>σ(Grad)/μ(Grad)</strong>: &lt;0.4 → +18 (균일 노이즈), &gt;1 → -10 (풍부한 텍스처)
+            <br/>• <strong>채도 분산 σ(Sat)</strong>: &lt;0.06 → +15 (인공적 균일성), &gt;0.18 → -8 (자연 색상)
+            <br/>• <strong>고주파 비율</strong>: &lt;4% → +10 (과도 평탄화), &gt;20% → -5
+          </p>
+          <div class="score-legend">
+            <div class="sl-item green">✅ 0~35%  — 실제 사진 가능성 높음 (자연스러운 물리 패턴 감지)</div>
+            <div class="sl-item orange">⚠️ 35~62% — 불확실 · 추가 검증 필요 (복합적 신호)</div>
+            <div class="sl-item red">🚨 62~100% — AI 생성 가능성 높음 (비정상적 그라디언트 분포)</div>
+          </div>
+          <div class="ac-src">📚 출처: Wang et al. (2020), "CNN-Generated Images Are Surprisingly Easy to Spot but Hard to Attribute", CVPR; Corvi et al. (2023), ICASSP; Gragnaniello et al. (2022) ICASSP</div>
+        </div>
+      </div>
+
+    </div><!-- /algo-cards -->
+
+    <!-- Real vs AI comparison -->
+    <div class="compare-block">
+      <h3>📊 실제 사진 vs AI 생성 이미지 — 물리적 특성 비교</h3>
+      <div class="cmp-grid">
+        <div class="cmp-card real">
+          <div class="cmp-hd">📷 실제 사진 특성</div>
+          <div class="cmp-body">
+            <div class="cmp-metric">
+              <span class="cm-label">Trace(C)</span>
+              <div class="cm-bar"><div style="width:85%;background:var(--grn)"></div></div>
+              <span class="cm-val">높음 (2,000+)</span>
+            </div>
+            <div class="cmp-metric">
+              <span class="cm-label">이방성</span>
+              <div class="cm-bar"><div style="width:80%;background:var(--grn)"></div></div>
+              <span class="cm-val">높음 (70%+)</span>
+            </div>
+            <div class="cmp-metric">
+              <span class="cm-label">채도 분산</span>
+              <div class="cm-bar"><div style="width:75%;background:var(--grn)"></div></div>
+              <span class="cm-val">높음 (σ&gt;0.15)</span>
+            </div>
+            <div class="cmp-metric">
+              <span class="cm-label">블록 주파수</span>
+              <div class="cm-bar"><div style="width:72%;background:var(--grn)"></div></div>
+              <span class="cm-val">풍부 (&gt;20)</span>
+            </div>
+          </div>
+          <ul class="cmp-list">
+            <li>실제 광학 렌즈·카메라 센서 노이즈 패턴</li>
+            <li>물리 법칙 따른 일관된 그라디언트 구조</li>
+            <li>자연스러운 색상 전환과 채도 다양성</li>
+            <li>렌즈 왜곡·보케(bokeh) 등 광학적 특성</li>
+            <li>EXIF: 카메라 제조사, ISO, 셔터스피드 포함</li>
           </ul>
         </div>
-        <div class="compare-card fake">
-          <div class="compare-header">🤖 AI 생성 이미지</div>
-          <ul>
-            <li>노이즈에서 점진적으로 생성되는 과정</li>
-            <li>색상 변화가 불안정하고 불규칙적</li>
-            <li>고주파 영역에서 부자연스러운 구조</li>
-            <li>낮은 Trace(C) 값 (과도한 평탄화)</li>
-            <li>비일관적인 그라디언트 분포</li>
+        <div class="cmp-card fake">
+          <div class="cmp-hd">🤖 AI 생성 이미지 특성</div>
+          <div class="cmp-body">
+            <div class="cmp-metric">
+              <span class="cm-label">Trace(C)</span>
+              <div class="cm-bar"><div style="width:18%;background:var(--red)"></div></div>
+              <span class="cm-val">낮음 (300 이하)</span>
+            </div>
+            <div class="cmp-metric">
+              <span class="cm-label">이방성</span>
+              <div class="cm-bar"><div style="width:16%;background:var(--red)"></div></div>
+              <span class="cm-val">낮음 (30% 이하)</span>
+            </div>
+            <div class="cmp-metric">
+              <span class="cm-label">채도 분산</span>
+              <div class="cm-bar"><div style="width:12%;background:var(--red)"></div></div>
+              <span class="cm-val">낮음 (σ&lt;0.06)</span>
+            </div>
+            <div class="cmp-metric">
+              <span class="cm-label">블록 주파수</span>
+              <div class="cm-bar"><div style="width:10%;background:var(--red)"></div></div>
+              <span class="cm-val">부족 (&lt;5)</span>
+            </div>
+          </div>
+          <ul class="cmp-list fake-list">
+            <li>확산 모델 반복 노이즈 제거로 과도 평탄화</li>
+            <li>GAN 생성자의 체커보드 아티팩트 발생</li>
+            <li>고주파 영역의 비자연적 균일성</li>
+            <li>얼굴·손가락·텍스트 경계의 블러 아티팩트</li>
+            <li>EXIF 없음 또는 소프트웨어명 포함</li>
           </ul>
         </div>
       </div>
     </div>
 
-    <!-- Scoring rubric -->
-    <div class="rubric-section">
-      <h3>심사 기준 및 배점</h3>
-      <div class="rubric-table">
-        <div class="rubric-row header">
-          <span>항목</span><span>심사 기준</span><span>배점</span>
+    <!-- Sources -->
+    <div class="sources-block">
+      <h3>📚 알고리즘 학술 참고문헌 및 데이터 출처</h3>
+      <div class="src-grid">
+        <div class="src-item">
+          <div class="src-type">ITU 표준</div>
+          <a href="https://www.itu.int/rec/R-REC-BT.709" target="_blank" rel="noopener">ITU-R BT.709-6 (2015)</a>
+          <p>Luminance 가중치 공식의 국제 표준 — 0.2126R+0.7152G+0.0722B</p>
         </div>
-        <div class="rubric-row">
-          <span class="rubric-tag" style="background:#00D4FF22;color:#00D4FF">적합성</span>
-          <span>시민 생활과 관련된 문제를 명확히 정의하고 이해하기 쉽게 제시했는가?</span>
-          <span class="rubric-score">20</span>
+        <div class="src-item">
+          <div class="src-type">IEEE 논문</div>
+          <a href="https://ieeexplore.ieee.org/document/6905746" target="_blank" rel="noopener">Kang et al., IEEE T-IFS (2014)</a>
+          <p>그라디언트 공분산 기반 이미지 포렌식 — Trace(C) 방법론</p>
         </div>
-        <div class="rubric-row">
-          <span class="rubric-tag" style="background:#22C55E22;color:#22C55E">안전성</span>
-          <span>AI 윤리와 개인정보 보호, 기술 오남용 가능성을 충분히 고려했는가?</span>
-          <span class="rubric-score">20</span>
+        <div class="src-item">
+          <div class="src-type">CVPR 2020</div>
+          <a href="https://arxiv.org/abs/2004.10448" target="_blank" rel="noopener">Wang et al., CVPR (2020)</a>
+          <p>CNN 생성 이미지 탐지 — 주파수 기반 분석</p>
         </div>
-        <div class="rubric-row">
-          <span class="rubric-tag" style="background:#7B2FFF22;color:#7B2FFF">창의성</span>
-          <span>기존 서비스와 차별화된 아이디어와 AI 활용 방식이 제시되었는가?</span>
-          <span class="rubric-score">30</span>
+        <div class="src-item">
+          <div class="src-type">ICASSP 2023</div>
+          <a href="https://arxiv.org/abs/2211.10737" target="_blank" rel="noopener">Corvi et al., ICASSP (2023)</a>
+          <p>확산 모델(Stable Diffusion) 생성 이미지 탐지</p>
         </div>
-        <div class="rubric-row">
-          <span class="rubric-tag" style="background:#FF990022;color:#FF9900">실현 가능성</span>
-          <span>아이디어를 구현하기 위한 기술·데이터와 실행 방향이 구체적인가?</span>
-          <span class="rubric-score">10</span>
+        <div class="src-item">
+          <div class="src-type">C2PA 표준</div>
+          <a href="https://c2pa.org/" target="_blank" rel="noopener">C2PA Specification (2024)</a>
+          <p>어도비·MS·소니·BBC 콘텐츠 인증 표준</p>
         </div>
-        <div class="rubric-row">
-          <span class="rubric-tag" style="background:#FF336622;color:#FF3366">확장성</span>
-          <span>서비스로 발전 가능하며 사회적으로 확장될 잠재력이 있는가?</span>
-          <span class="rubric-score">20</span>
+        <div class="src-item">
+          <div class="src-type">NIST 가이드</div>
+          <a href="https://www.nist.gov/artificial-intelligence" target="_blank" rel="noopener">NIST AI (2024)</a>
+          <p>AI 생성 미디어 탐지 국가 가이드라인</p>
         </div>
-        <div class="rubric-row total">
-          <span>합계</span><span></span><span class="rubric-score">100</span>
+        <div class="src-item">
+          <div class="src-type">뉴스 DB</div>
+          <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">GDELT Project</a>
+          <p>실시간 글로벌 뉴스 분석 및 팩트체크 DB</p>
+        </div>
+        <div class="src-item">
+          <div class="src-type">IFCN 인증</div>
+          <a href="https://www.ifcncodeofprinciples.poynter.org/" target="_blank" rel="noopener">IFCN 국제팩트체킹네트워크</a>
+          <p>신뢰 가능한 팩트체크 기관 글로벌 인증</p>
         </div>
       </div>
     </div>
-  </div>
-</section>
 
-<!-- ░░ TOAST ░░ -->
+  </div>
+</div><!-- /page-algorithm -->
+
+<!-- ══════════════════════════════════════════════
+     PAGE: FLOWCHART (시스템 흐름도 & 데이터 파이프라인)
+══════════════════════════════════════════════ -->
+<div class="page" id="page-flowchart">
+  <div class="fc-wrap">
+
+    <div class="fc-header">
+      <div class="fc-badge">시스템 아키텍처</div>
+      <h2>Fact Maze — 데이터 흐름도 및 시스템 동작</h2>
+      <p>이미지 업로드부터 최종 판정까지의 전체 처리 파이프라인과 17개 기관 교차검증 흐름</p>
+    </div>
+
+    <!-- ── MAIN PIPELINE FLOW ─────────────────── -->
+    <div class="fc-section">
+      <div class="fcs-title">① 이미지 처리 파이프라인</div>
+      <div class="flow-diagram" id="flow-main">
+        <div class="fd-node input">
+          <div class="fdn-icon">📤</div>
+          <div class="fdn-label">이미지 업로드</div>
+          <div class="fdn-sub">JPG/PNG/WebP/GIF<br/>최대 30MB</div>
+        </div>
+        <div class="fd-arrow">→</div>
+        <div class="fd-node process">
+          <div class="fdn-icon">⚡</div>
+          <div class="fdn-label">Sharp 전처리</div>
+          <div class="fdn-sub">리사이즈 512×512<br/>RAW 픽셀 추출</div>
+        </div>
+        <div class="fd-arrow">→</div>
+        <div class="fd-node branch">
+          <div class="fdn-icon">🔀</div>
+          <div class="fdn-label">병렬 분석 엔진</div>
+          <div class="fdn-sub">10단계 동시 실행<br/>+ ML 예측</div>
+        </div>
+        <div class="fd-arrow">→</div>
+        <div class="fd-node output">
+          <div class="fdn-icon">📊</div>
+          <div class="fdn-label">복합 판정</div>
+          <div class="fdn-sub">AI 확률 0~100%<br/>4단계 판정</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 10-STEP ALGORITHM FLOW ─────────────── -->
+    <div class="fc-section">
+      <div class="fcs-title">② 10단계 분석 알고리즘 — 물리 특성 vs 노이즈 패턴</div>
+      <div class="fc-concept-box">
+        <div class="fcb-left">
+          <div class="fcb-title real-title">📷 실제 이미지</div>
+          <div class="fcb-desc">물리 법칙 기반 특성 보유<br/>빛·그림자·렌즈 수차·센서 노이즈</div>
+        </div>
+        <div class="fcb-center">⟷</div>
+        <div class="fcb-right">
+          <div class="fcb-title ai-title">🤖 AI 생성 이미지</div>
+          <div class="fcb-desc">노이즈 기반 확률 생성<br/>확산 모델·GAN 역전파로 합성</div>
+        </div>
+      </div>
+      <div class="algo-flow-steps">
+        <div class="afs-step">
+          <div class="afs-num">STEP 1</div>
+          <div class="afs-content">
+            <div class="afs-name">EXIF · 메타데이터 분석</div>
+            <div class="afs-detail">카메라 모델, ISO, 셔터속도, GPS, 촬영일시 → AI 도구 시그니처 13종 탐지</div>
+            <div class="afs-formula">확인: EXIF[Make/Model], Software, C2PA markers</div>
+            <div class="afs-signal real">✅ 실제: 카메라 메타 존재</div>
+            <div class="afs-signal fake">⚠️ AI: EXIF 없음 / AI 소프트웨어 명시</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 2</div>
+          <div class="afs-content">
+            <div class="afs-name">BT.709 휘도 추출 · 히스토그램</div>
+            <div class="afs-detail">ITU-R BT.709 표준 가중치로 모든 픽셀의 휘도값 산출</div>
+            <div class="afs-formula">L(x,y) = 0.2126·R + 0.7152·G + 0.0722·B<br/>χ² 히스토그램 균일성 검정</div>
+            <div class="afs-signal real">✅ 실제: σ(L) 높음, 자연스러운 분포</div>
+            <div class="afs-signal fake">⚠️ AI: σ(L) 낮음, 히스토그램 과도 평탄</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 3</div>
+          <div class="afs-content">
+            <div class="afs-name">Sobel 그라디언트 · 공분산 행렬</div>
+            <div class="afs-detail">각 픽셀의 x/y 방향 그라디언트 → 벡터 행렬 M ∈ ℝ^(N×2) → 공분산 행렬 C</div>
+            <div class="afs-formula">Gx, Gy → M → C = (1/N)·MᵀM<br/>Trace(C) = λ₁ + λ₂, 이방성 = (λ₁-λ₂)/λ₁</div>
+            <div class="afs-signal real">✅ 실제: Trace &gt; 2000, 강한 방향성</div>
+            <div class="afs-signal fake">⚠️ AI: Trace &lt; 500, 등방성 노이즈</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 4</div>
+          <div class="afs-content">
+            <div class="afs-name">ELA — 압축 오류 레벨 분석</div>
+            <div class="afs-detail">원본 vs 75% 재압축 JPEG 차이 → 블록별 오류 분포</div>
+            <div class="afs-formula">ELA(x,y) = |I_orig(x,y) - I_75%(x,y)|</div>
+            <div class="afs-signal real">✅ 실제: ELA mean &gt; 1.5, 블록 패턴 다양</div>
+            <div class="afs-signal fake">⚠️ AI: ELA ≈ 0, 처음부터 렌더링</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 5</div>
+          <div class="afs-content">
+            <div class="afs-name">DCT 주파수 스펙트럼 분석</div>
+            <div class="afs-detail">8×8 블록 DCT → 저/중/고 주파수 에너지 비율 분석</div>
+            <div class="afs-formula">F_high = Σ(고주파 블록 분산 &gt; 0.05) / 전체 블록</div>
+            <div class="afs-signal real">✅ 실제: 고주파 &gt; 6%, 자연 분포</div>
+            <div class="afs-signal fake">⚠️ AI: 고주파 &lt; 3%, 확산 모델 평탄화</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 6</div>
+          <div class="afs-content">
+            <div class="afs-name">PRNU — 카메라 센서 노이즈 핑거프린트</div>
+            <div class="afs-detail">Wiener 필터로 노이즈 추출 → 공간 상관 분석 → 첨도 계산</div>
+            <div class="afs-formula">Noise(x,y) = I(x,y) - μ_local(3×3)<br/>공간상관 = Corr(noise_row_i, noise_row_{i+1})</div>
+            <div class="afs-signal real">✅ 실제: PRNU 공간상관 &gt; 0.05, 카메라 핑거프린트</div>
+            <div class="afs-signal fake">⚠️ AI: 공간상관 ≈ 0, 센서 패턴 없음</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 7</div>
+          <div class="afs-content">
+            <div class="afs-name">GAN 아티팩트 · 체커보드 패턴</div>
+            <div class="afs-detail">전치 합성곱(Transpose Conv) 업샘플링 시 발생하는 주기 패턴 탐지</div>
+            <div class="afs-formula">주기성 = FFT(row_diff) 피크 탐지<br/>행 분산 < 0.5 → GAN 신호</div>
+            <div class="afs-signal real">✅ 실제: 비주기성 그라디언트, 자연 경계</div>
+            <div class="afs-signal fake">⚠️ AI: 4px/8px 주기 체커보드 아티팩트</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 8</div>
+          <div class="afs-content">
+            <div class="afs-name">확산 모델(Diffusion) 특성 분석</div>
+            <div class="afs-detail">색상 다양성 · 텍스처 분산 균일성으로 확산 모델 과평탄화 탐지</div>
+            <div class="afs-formula">Color diversity = |unique(RGB/32)| / 512<br/>Texture Var = std(σ per block)</div>
+            <div class="afs-signal real">✅ 실제: 색상 다양 &gt; 300, 텍스처 불균일</div>
+            <div class="afs-signal fake">⚠️ AI: 색상 제한 &lt; 100, 균일 텍스처</div>
+          </div>
+        </div>
+        <div class="afs-step">
+          <div class="afs-num">STEP 9</div>
+          <div class="afs-content">
+            <div class="afs-name">채도 분석 · 블록 주파수 불규칙성</div>
+            <div class="afs-detail">HSV 채도 표준편차 · 8×8 블록 주파수 불규칙성 점수</div>
+            <div class="afs-formula">σ(S) = std(Saturation), FreqIrreg = Σ|block_std|</div>
+            <div class="afs-signal real">✅ 실제: σ(S) &gt; 0.20, FreqIrreg &gt; 25</div>
+            <div class="afs-signal fake">⚠️ AI: σ(S) &lt; 0.05, 낮은 불규칙성</div>
+          </div>
+        </div>
+        <div class="afs-step final-step">
+          <div class="afs-num">STEP 10</div>
+          <div class="afs-content">
+            <div class="afs-name">GAN 판별자 + 복합 AI 확률 최종 판정</div>
+            <div class="afs-detail">9개 특성 가중합 + 시그모이드 → 판별자 확률 → 역전파 학습</div>
+            <div class="afs-formula">P(AI) = σ(Σ wᵢ·xᵢ) → 복합 확률 계산<br/>Δwᵢ = η·(target - P)·xᵢ</div>
+            <div class="afs-thresholds">
+              <span class="thr real">≤ 39% 🟢 실제 사진</span>
+              <span class="thr unc">40~74% 🟡 불확실</span>
+              <span class="thr ai">≥ 75% 🔴 AI 생성</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CROSS-VERIFICATION FLOW ─────────────── -->
+    <div class="fc-section">
+      <div class="fcs-title">③ 17개 국제기관 교차검증 파이프라인</div>
+      <div class="cv-flow-grid">
+        <div class="cvf-group">
+          <div class="cvfg-title">🌍 국제 IFCN 인증</div>
+          <div class="cvf-agency">Reuters Fact Check</div>
+          <div class="cvf-agency">AFP Fact Check</div>
+          <div class="cvf-agency">Snopes (USA)</div>
+          <div class="cvf-agency">FactCheck.org</div>
+          <div class="cvf-agency">Bellingcat OSINT</div>
+          <div class="cvf-agency">StopFake (Ukraine)</div>
+          <div class="cvf-agency">MENA Fact Check</div>
+          <div class="cvf-badge">RSS 라이브 + 참조</div>
+        </div>
+        <div class="cvf-arrow">→</div>
+        <div class="cvf-group">
+          <div class="cvfg-title">🇰🇷 국내 기관</div>
+          <div class="cvf-agency">연합뉴스 팩트체크</div>
+          <div class="cvf-agency">SBS 팩트체크</div>
+          <div class="cvf-agency">KISA 인터넷진흥원</div>
+          <div class="cvf-agency">경찰청 사이버수사대</div>
+          <div class="cvf-badge">RSS 라이브 + 신고</div>
+        </div>
+        <div class="cvf-arrow">→</div>
+        <div class="cvf-group">
+          <div class="cvfg-title">🔬 연구·기술기관</div>
+          <div class="cvf-agency">MIT Media Lab</div>
+          <div class="cvf-agency">NIST AI RMF</div>
+          <div class="cvf-agency">Google SynthID</div>
+          <div class="cvf-agency">C2PA 콘텐츠 인증</div>
+          <div class="cvf-agency">GDELT 글로벌 DB</div>
+          <div class="cvf-badge">API 라이브 접근</div>
+        </div>
+        <div class="cvf-arrow">→</div>
+        <div class="cvf-group result-group">
+          <div class="cvfg-title">📊 통합 판정</div>
+          <div class="cvf-agency">교차 점수 산출</div>
+          <div class="cvf-agency">신뢰도 레벨 결정</div>
+          <div class="cvf-agency">최종 AI 확률 보정</div>
+          <div class="cvf-badge">HIGH / MEDIUM / LOW</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DATA FLOW DIAGRAM ───────────────────── -->
+    <div class="fc-section">
+      <div class="fcs-title">④ 시스템 아키텍처 다이어그램</div>
+      <div class="arch-diagram">
+        <div class="arch-layer client-layer">
+          <div class="al-title">🖥️ Client Layer</div>
+          <div class="al-items">
+            <div class="ali">브라우저 UI<br/><small>HTML/CSS/JS</small></div>
+            <div class="ali">WebSocket<br/><small>실시간 업데이트</small></div>
+            <div class="ali">이미지 드래그앤드롭<br/><small>최대 30MB</small></div>
+          </div>
+        </div>
+        <div class="arch-conn">↕ HTTP/WS</div>
+        <div class="arch-layer server-layer">
+          <div class="al-title">⚙️ Node.js Server (Port 3000)</div>
+          <div class="al-items">
+            <div class="ali">Express.js<br/><small>REST API</small></div>
+            <div class="ali">Sharp<br/><small>이미지 처리</small></div>
+            <div class="ali">Multer<br/><small>파일 업로드</small></div>
+            <div class="ali">WebSocket<br/><small>실시간 브로드캐스트</small></div>
+          </div>
+        </div>
+        <div class="arch-conn">↕ HTTP (localhost)</div>
+        <div class="arch-layer ml-layer">
+          <div class="al-title">🧠 Python ML Engine (Port 5001)</div>
+          <div class="al-items">
+            <div class="ali">Flask API<br/><small>REST 엔드포인트</small></div>
+            <div class="ali">SGDClassifier<br/><small>온라인 학습</small></div>
+            <div class="ali">14-dim Feature<br/><small>물리 지표 추출</small></div>
+            <div class="ali">Labeled DB<br/><small>JSON 영속화</small></div>
+          </div>
+        </div>
+        <div class="arch-conn">↕ HTTP/RSS/API</div>
+        <div class="arch-layer ext-layer">
+          <div class="al-title">🌐 External Sources</div>
+          <div class="al-items">
+            <div class="ali">GDELT API<br/><small>글로벌 뉴스</small></div>
+            <div class="ali">DuckDuckGo<br/><small>인스턴트 검색</small></div>
+            <div class="ali">RSS Feeds<br/><small>Reuters·Snopes·연합</small></div>
+            <div class="ali">Wikipedia API<br/><small>개념 검색</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ML LEARNING PIPELINE ───────────────── -->
+    <div class="fc-section">
+      <div class="fcs-title">⑤ 빅데이터 · 온라인 학습 파이프라인</div>
+      <div class="ml-pipeline-flow">
+        <div class="mlf-step">
+          <div class="mlf-icon">📡</div>
+          <div class="mlf-label">공개 데이터 수집</div>
+          <div class="mlf-detail">Picsum (CC0)<br/>실제 이미지</div>
+        </div>
+        <div class="mlf-arrow">+</div>
+        <div class="mlf-step">
+          <div class="mlf-icon">🤖</div>
+          <div class="mlf-label">AI 이미지 생성</div>
+          <div class="mlf-detail">Blur·재압축으로<br/>AI 특성 시뮬레이션</div>
+        </div>
+        <div class="mlf-arrow">→</div>
+        <div class="mlf-step">
+          <div class="mlf-icon">🔬</div>
+          <div class="mlf-label">특성 추출 (14D)</div>
+          <div class="mlf-detail">휘도·그라디언트·<br/>ELA·DCT·PRNU…</div>
+        </div>
+        <div class="mlf-arrow">→</div>
+        <div class="mlf-step">
+          <div class="mlf-icon">🏷️</div>
+          <div class="mlf-label">자동/수동 라벨링</div>
+          <div class="mlf-detail">real /<br/>ai_generated</div>
+        </div>
+        <div class="mlf-arrow">→</div>
+        <div class="mlf-step">
+          <div class="mlf-icon">⚡</div>
+          <div class="mlf-label">증분 학습</div>
+          <div class="mlf-detail">SGD partial_fit<br/>균형 가중치</div>
+        </div>
+        <div class="mlf-arrow">→</div>
+        <div class="mlf-step">
+          <div class="mlf-icon">💾</div>
+          <div class="mlf-label">모델 저장</div>
+          <div class="mlf-detail">joblib 영속화<br/>자동 재로드</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /page-flowchart -->
+
+<!-- ══════════════════════════════════════════════
+     PAGE: ABOUT
+══════════════════════════════════════════════ -->
+<div class="page" id="page-about">
+  <div class="container py60">
+    <div class="sec-label">서비스 소개</div>
+    <h2 class="sec-h2">Fact Maze란 무엇인가요?</h2>
+    <p class="sec-desc">"팩트를 만들어 가는 사람들" — 시민·언론인·연구자가 함께 만드는 진실 검증 플랫폼</p>
+
+    <!-- Mission -->
+    <div class="about-mission">
+      <div class="am-text">
+        <h3>🎯 미션</h3>
+        <p>AI 생성 허위정보가 민주주의, 개인 인권, 국제 관계를 위협하는 시대에 — Fact Maze는 누구나 무료로 이미지의 진위를 과학적으로 검증할 수 있는 투명한 도구를 제공합니다.</p>
+        <p>우리는 <strong>알고리즘을 공개</strong>하고(GitHub 오픈소스), <strong>학술 근거를 명시</strong>하며(IEEE·CVPR·ICASSP 논문 참조), <strong>개인정보를 수집하지 않습니다</strong>(분석 후 이미지 즉시 삭제).</p>
+        <p>Fact Maze는 탐지 결과를 법적 증거로 사용하지 말 것을 권고하며, 최종 판단은 반드시 전문가 검토와 다중 소스 교차 검증을 통해 이루어져야 합니다.</p>
+      </div>
+      <div class="am-values">
+        <div class="amv"><span>🔓</span> 오픈소스 투명성 (GitHub 공개)</div>
+        <div class="amv"><span>🔒</span> 개인정보 무수집 · 즉시 삭제</div>
+        <div class="amv"><span>📚</span> IEEE·CVPR 논문 기반 알고리즘</div>
+        <div class="amv"><span>🌏</span> 한국어·영어 다국어 지원</div>
+        <div class="amv"><span>⚖️</span> AI 윤리 준수 (IEEE AI Ethics)</div>
+      </div>
+    </div>
+
+    <!-- AI Ethics -->
+    <div class="about-section">
+      <div class="sec-label">AI 윤리</div>
+      <h3>책임 있는 AI 탐지 도구로서의 원칙</h3>
+      <div class="ethics-principles">
+        <div class="ep">
+          <div class="ep-icon">⚖️</div>
+          <h4>공정성 (Fairness)</h4>
+          <p>탐지 알고리즘은 특정 문화권·인종·국가 이미지에 편향되지 않도록 수학적 지표(그라디언트, 공분산)만 사용합니다. 이미지 내용이 아닌 순수 물리적 특성만 분석합니다. 색상·피부톤·문화적 요소가 판정에 영향을 주지 않습니다.</p>
+        </div>
+        <div class="ep">
+          <div class="ep-icon">🔍</div>
+          <h4>투명성 (Transparency)</h4>
+          <p>모든 알고리즘은 GitHub에 공개됩니다. 사용된 수학 공식(Trace(C), 이방성, 채도 분산)과 결정 임계값(62%, 35%)을 완전 공개합니다. ITU·IEEE·CVPR 등 검증된 학술 논문에만 근거합니다.</p>
+        </div>
+        <div class="ep">
+          <div class="ep-icon">🛡️</div>
+          <h4>프라이버시 (Privacy)</h4>
+          <p>업로드 이미지는 분석 직후 서버에서 즉시 삭제됩니다. 사용자 식별 정보(IP, 계정 등)를 수집하지 않습니다. 이미지를 AI 학습 데이터로 사용하지 않습니다. GDPR·개인정보보호법 준수.</p>
+        </div>
+        <div class="ep">
+          <div class="ep-icon">⚠️</div>
+          <h4>한계 인식 (Limitation)</h4>
+          <p>Fact Maze의 결과는 과학적 참고 도구입니다. 법적 증거로 사용 불가. 최종 판단은 전문가 검토 + 다중 소스 교차 검증 필수. 확신 없는 경우 결과를 공유하지 마세요. 오탐(False Positive) 가능성 항상 존재.</p>
+        </div>
+        <div class="ep">
+          <div class="ep-icon">📖</div>
+          <h4>오남용 방지</h4>
+          <p>탐지 결과를 이용한 허위 고발, 특정 집단 표적화, 정치적 조작 목적 사용을 금지합니다. 악의적 사용 발견 시 즉시 서비스 제한. 딥페이크 생성 방법 문의에는 답변하지 않습니다.</p>
+        </div>
+        <div class="ep">
+          <div class="ep-icon">🌱</div>
+          <h4>지속적 개선</h4>
+          <p>AI 생성 기술(GAN → 확산 모델 → 멀티모달 모델) 발전에 맞춰 탐지 알고리즘을 지속 업데이트합니다. CVPR·ICASSP·IEEE T-IFS 최신 논문을 모니터링하여 적용합니다.</p>
+        </div>
+      </div>
+      <div class="ethics-ref">
+        📋 준수 기준: IEEE Ethically Aligned Design v1 (2019) · UNESCO AI Recommendation (2021) · EU AI Act (2024) · 개인정보보호법(한국) · GDPR(EU) · IFCN 국제팩트체킹 윤리강령
+      </div>
+    </div>
+
+    <!-- Fact-check sources -->
+    <div class="about-section">
+      <div class="sec-label">검증 기관</div>
+      <h3>Fact Maze가 사용하는 팩트체크 소스 (12개+)</h3>
+      <div class="src-org-grid">
+        <div class="sog international">
+          <div class="sog-title">🌍 국제 팩트체크 기관 (IFCN 인증)</div>
+          <div class="sog-list">
+            <a href="https://www.reuters.com/fact-check/" target="_blank" rel="noopener">Reuters Fact Check</a>
+            <a href="https://fact.afp.com/en" target="_blank" rel="noopener">AFP Fact Check</a>
+            <a href="https://www.snopes.com/" target="_blank" rel="noopener">Snopes (USA)</a>
+            <a href="https://www.factcheck.org/" target="_blank" rel="noopener">FactCheck.org</a>
+            <a href="https://www.bellingcat.com/" target="_blank" rel="noopener">Bellingcat (OSINT)</a>
+            <a href="https://www.stopfake.org/" target="_blank" rel="noopener">StopFake (Ukraine)</a>
+            <a href="https://menafactcheck.com/" target="_blank" rel="noopener">MENA Fact Check (중동)</a>
+          </div>
+        </div>
+        <div class="sog korean">
+          <div class="sog-title">🇰🇷 국내 기관 및 법집행</div>
+          <div class="sog-list">
+            <a href="https://www.yna.co.kr/" target="_blank" rel="noopener">연합뉴스 팩트체크</a>
+            <a href="https://factcheck.sbs.co.kr/" target="_blank" rel="noopener">SBS 팩트체크</a>
+            <a href="https://www.kisa.or.kr/1060" target="_blank" rel="noopener">KISA 한국인터넷진흥원</a>
+            <a href="https://cyberbureau.police.go.kr/" target="_blank" rel="noopener">경찰청 사이버수사대</a>
+          </div>
+        </div>
+        <div class="sog research">
+          <div class="sog-title">🔬 연구·표준·기술 기관</div>
+          <div class="sog-list">
+            <a href="https://detect.mit.edu/" target="_blank" rel="noopener">MIT Media Lab 딥페이크 탐지</a>
+            <a href="https://www.nist.gov/artificial-intelligence" target="_blank" rel="noopener">NIST AI (미국 표준기술연구소)</a>
+            <a href="https://deepmind.google/safety/" target="_blank" rel="noopener">Google DeepMind SynthID</a>
+            <a href="https://c2pa.org/" target="_blank" rel="noopener">C2PA 콘텐츠 인증 연합</a>
+            <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">GDELT 글로벌 뉴스 DB</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scalability detail -->
+    <div class="about-section">
+      <div class="sec-label">확장성</div>
+      <h3>기술 아키텍처와 확장 계획</h3>
+      <div class="expand-grid">
+        <div class="exp-card">
+          <div class="exp-phase">현재 스택</div>
+          <h4>Node.js + Express 기반</h4>
+          <p>WebSocket 실시간 통신, Multer 파일 업로드, sharp(libvips) 이미지 처리. 단일 서버에서 초당 10+ 분석 처리 가능. JSON 보고서 영구 저장.</p>
+        </div>
+        <div class="exp-card">
+          <div class="exp-phase">수평 확장</div>
+          <h4>마이크로서비스 분리</h4>
+          <p>이미지 분석 엔진을 별도 서비스로 분리 → Kubernetes 수평 확장. Redis 캐시로 팩트체크 결과 재활용. CDN으로 정적 자산 전송 최적화.</p>
+        </div>
+        <div class="exp-card">
+          <div class="exp-phase">AI 고도화</div>
+          <h4>딥러닝 탐지 모델 통합</h4>
+          <p>현재 수학적 알고리즘 기반에서 → CNN 기반 탐지 모델(Wang et al. 2020, 정확도 ~99%)과 앙상블. ONNX 모델 서빙으로 지연 최소화.</p>
+        </div>
+        <div class="exp-card">
+          <div class="exp-phase">데이터 파이프라인</div>
+          <h4>GDELT 실시간 피드 통합</h4>
+          <p>GDELT 뉴스 스트림을 실시간 구독하여 분쟁지역 이미지 급증 자동 감지. Kafka 기반 이벤트 스트리밍으로 초당 1,000+ 기사 처리.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /page-about -->
+
+<!-- ══════════════════════════════════════════════
+     PAGE: LEARNING (빅데이터 파이프라인 + 실시간 학습)
+══════════════════════════════════════════════ -->
+<div class="page" id="page-learning">
+  <div class="pg-header">
+    <div class="pg-title-wrap">
+      <div class="pg-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="pg-title">AI 온라인 학습 센터</h2>
+        <p class="pg-desc">빅데이터 파이프라인 · 실시간 라벨링 · 증분 학습 (Incremental Learning)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="learn-grid">
+    <!-- ─── ML Engine Status ─────────────────── -->
+    <div class="learn-card full-width">
+      <div class="lc-head">
+        <div class="lc-icon brain">🧠</div>
+        <div>
+          <h3>ML 엔진 상태</h3>
+          <p>SGDClassifier 온라인 학습 엔진 (Python scikit-learn)</p>
+        </div>
+        <button class="btn-refresh" id="btn-ml-refresh">새로고침</button>
+      </div>
+      <div class="ml-status-grid" id="ml-status-grid">
+        <div class="mss-item">
+          <div class="mss-val" id="ml-status-dot">⏳</div>
+          <div class="mss-lbl">엔진 상태</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-labeled-cnt">—</div>
+          <div class="mss-lbl">라벨링 샘플</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-train-rounds">—</div>
+          <div class="mss-lbl">학습 라운드</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-accuracy">—</div>
+          <div class="mss-lbl">학습 정확도</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-real-cnt">—</div>
+          <div class="mss-lbl">실제 이미지</div>
+        </div>
+        <div class="mss-item">
+          <div class="mss-val" id="ml-ai-cnt">—</div>
+          <div class="mss-lbl">AI 이미지</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Big Data Pipeline ───────────────── -->
+    <div class="learn-card">
+      <div class="lc-head">
+        <div class="lc-icon pipeline">📡</div>
+        <div>
+          <h3>빅데이터 파이프라인</h3>
+          <p>공개 데이터셋 자동 수집 → 특성 추출 → 라벨링 → 학습</p>
+        </div>
+      </div>
+      <div class="pipeline-settings">
+        <div class="ps-row">
+          <label>실제 이미지 수집 수</label>
+          <input type="range" id="pipe-real" min="5" max="50" value="10" step="5"/>
+          <span id="pipe-real-val">10</span>
+        </div>
+        <div class="ps-row">
+          <label>AI 이미지 수집 수</label>
+          <input type="range" id="pipe-ai" min="5" max="50" value="10" step="5"/>
+          <span id="pipe-ai-val">10</span>
+        </div>
+        <div class="ps-check">
+          <input type="checkbox" id="pipe-autotrain" checked/>
+          <label for="pipe-autotrain">수집 후 자동 학습</label>
+        </div>
+      </div>
+      <button class="btn-pipeline" id="btn-run-pipeline">
+        <span class="btn-icon">🚀</span>
+        파이프라인 실행
+      </button>
+      <div class="pipeline-log" id="pipeline-log">
+        <div class="log-empty">파이프라인을 실행하면 로그가 표시됩니다.</div>
+      </div>
+    </div>
+
+    <!-- ─── Manual Labeling ─────────────────── -->
+    <div class="learn-card">
+      <div class="lc-head">
+        <div class="lc-icon label">🏷️</div>
+        <div>
+          <h3>수동 라벨링</h3>
+          <p>이미지를 업로드하고 직접 라벨을 지정하여 모델 학습</p>
+        </div>
+      </div>
+      <div class="label-upload-zone" id="label-drop-zone">
+        <div class="luz-inner">
+          <div class="luz-icon">📂</div>
+          <p>이미지를 드래그하거나 클릭하세요</p>
+          <span>JPG, PNG, WebP · 최대 10MB</span>
+        </div>
+        <input type="file" id="label-file-input" accept="image/*" style="display:none"/>
+      </div>
+      <div class="label-preview-wrap" id="label-preview-wrap" style="display:none">
+        <img id="label-preview-img" src="" alt="Preview"/>
+        <div class="label-preview-info" id="label-preview-info"></div>
+      </div>
+      <div class="label-buttons">
+        <button class="btn-label real" id="btn-label-real" disabled>
+          ✅ 실제 사진 (Real)
+        </button>
+        <button class="btn-label ai" id="btn-label-ai" disabled>
+          🤖 AI 생성 (AI Generated)
+        </button>
+      </div>
+      <div class="label-result" id="label-result"></div>
+    </div>
+
+    <!-- ─── Training Control ────────────────── -->
+    <div class="learn-card">
+      <div class="lc-head">
+        <div class="lc-icon train">⚡</div>
+        <div>
+          <h3>학습 제어</h3>
+          <p>라벨링된 데이터로 온라인 학습 실행</p>
+        </div>
+      </div>
+      <div class="train-info" id="train-info">
+        <div class="ti-row">
+          <span>모델 유형</span>
+          <strong>SGDClassifier (log_loss)</strong>
+        </div>
+        <div class="ti-row">
+          <span>특성 수</span>
+          <strong>14개 물리 지표</strong>
+        </div>
+        <div class="ti-row">
+          <span>학습 방식</span>
+          <strong>증분 학습 (partial_fit)</strong>
+        </div>
+        <div class="ti-row">
+          <span>클래스</span>
+          <strong>real / ai_generated</strong>
+        </div>
+      </div>
+      <button class="btn-train" id="btn-train-all">
+        <span>🎯</span> 전체 데이터 재학습
+      </button>
+      <div class="train-progress" id="train-progress" style="display:none">
+        <div class="tp-bar"><div class="tp-fill" id="tp-fill"></div></div>
+        <span id="tp-msg">학습 중...</span>
+      </div>
+      <div class="train-result" id="train-result"></div>
+    </div>
+
+    <!-- ─── Dataset Browser ─────────────────── -->
+    <div class="learn-card full-width">
+      <div class="lc-head">
+        <div class="lc-icon db">📊</div>
+        <div>
+          <h3>라벨 데이터셋 브라우저</h3>
+          <p>수집 및 라벨링된 샘플 목록 · 필터링 · 삭제</p>
+        </div>
+        <div class="db-filters">
+          <button class="db-filter active" data-filter="all">전체</button>
+          <button class="db-filter" data-filter="real">실제</button>
+          <button class="db-filter" data-filter="ai_generated">AI생성</button>
+          <button class="db-filter" data-filter="manual">수동라벨</button>
+        </div>
+      </div>
+      <div class="dataset-table-wrap">
+        <table class="dataset-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>라벨</th>
+              <th>출처</th>
+              <th>유형</th>
+              <th>시간</th>
+              <th>삭제</th>
+            </tr>
+          </thead>
+          <tbody id="dataset-tbody">
+            <tr><td colspan="6" class="table-empty">데이터셋을 로드 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="db-pagination" id="db-pagination">
+        <button class="db-page-btn" id="db-prev">◀ 이전</button>
+        <span id="db-page-info">1 / 1</span>
+        <button class="db-page-btn" id="db-next">다음 ▶</button>
+      </div>
+    </div>
+
+    <!-- ─── Learning Log ────────────────────── -->
+    <div class="learn-card full-width">
+      <div class="lc-head">
+        <div class="lc-icon log">📋</div>
+        <div>
+          <h3>실시간 학습 로그</h3>
+          <p>파이프라인·라벨링·학습 이벤트 스트림</p>
+        </div>
+        <button class="btn-refresh" id="btn-log-clear">로그 지우기</button>
+      </div>
+      <div class="learning-log" id="learning-log">
+        <div class="log-empty">이벤트 로그가 여기에 표시됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /page-learning -->
+
+</div><!-- /page-wrap -->
+
+<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<!-- CURSOR GLOW -->
+<div class="cursor-glow" id="cg"></div>
+
 <script src="js/app.js"></script>
+
+<!-- Algorithm page canvas illustrations -->
+<script>
+(function() {
+  // Draw pattern illustrations when algorithm page is shown
+  function drawPatterns() {
+    // Luminance distribution - Real (varied, high contrast)
+    const lumReal = document.getElementById('c-lum-real');
+    if (lumReal && lumReal.getContext) {
+      const ctx = lumReal.getContext('2d');
+      lumReal.width = lumReal.parentElement.offsetWidth || 240;
+      lumReal.height = 100;
+      const W = lumReal.width, H = lumReal.height;
+      // Draw natural luminance histogram - high variance
+      ctx.fillStyle = '#0D1117';
+      ctx.fillRect(0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, 'rgba(34,197,94,0)');
+      grad.addColorStop(0.3, 'rgba(34,197,94,0.7)');
+      grad.addColorStop(0.7, 'rgba(34,197,94,0.3)');
+      grad.addColorStop(1, 'rgba(34,197,94,0)');
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 3) {
+        const y = H - (Math.sin(x/W * Math.PI * 3) * 0.4 + Math.random() * 0.6) * (H - 20);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      // Label
+      ctx.fillStyle = '#22C55E';
+      ctx.font = '9px Inter';
+      ctx.fillText('높은 분산 σ(L) > 35', 8, 14);
+    }
+
+    // Luminance distribution - AI (uniform, low variance)
+    const lumFake = document.getElementById('c-lum-fake');
+    if (lumFake && lumFake.getContext) {
+      const ctx = lumFake.getContext('2d');
+      lumFake.width = lumFake.parentElement.offsetWidth || 240;
+      lumFake.height = 100;
+      const W = lumFake.width, H = lumFake.height;
+      ctx.fillStyle = '#0D1117';
+      ctx.fillRect(0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, 'rgba(255,51,102,0)');
+      grad.addColorStop(0.35, 'rgba(255,51,102,0.8)');
+      grad.addColorStop(0.65, 'rgba(255,51,102,0.8)');
+      grad.addColorStop(1, 'rgba(255,51,102,0)');
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 3) {
+        // Nearly uniform distribution - narrow peak
+        const center = W * 0.5;
+        const spread = W * 0.15;
+        const gauss = Math.exp(-Math.pow(x - center, 2) / (2 * spread * spread));
+        const y = H - gauss * (H - 20);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.fillStyle = '#FF3366';
+      ctx.font = '9px Inter';
+      ctx.fillText('낮은 분산 σ(L) < 15', 8, 14);
+    }
+
+    // Gradient map - Real (strong edges, directional)
+    const gradReal = document.getElementById('c-grad-real');
+    if (gradReal && gradReal.getContext) {
+      const ctx = gradReal.getContext('2d');
+      gradReal.width = gradReal.parentElement.offsetWidth || 240;
+      gradReal.height = 100;
+      const W = gradReal.width, H = gradReal.height;
+      ctx.fillStyle = '#0D1117';
+      ctx.fillRect(0, 0, W, H);
+      // Draw strong directional gradient lines
+      for (let i = 0; i < 8; i++) {
+        const x = (W / 8) * i + W / 16;
+        const h = 20 + Math.random() * 60;
+        ctx.fillStyle = `rgba(0,212,255,${0.3 + Math.random() * 0.5})`;
+        ctx.fillRect(x - 2, H - h, 4, h);
+      }
+      // Add diagonal edges
+      ctx.strokeStyle = 'rgba(0,212,255,0.3)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * W, 0);
+        ctx.lineTo(Math.random() * W, H);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#22C55E';
+      ctx.font = '9px Inter';
+      ctx.fillText('강한 경계 그라디언트 → 높은 Trace', 6, 14);
+    }
+
+    // Gradient map - AI (uniform, weak)
+    const gradFake = document.getElementById('c-grad-fake');
+    if (gradFake && gradFake.getContext) {
+      const ctx = gradFake.getContext('2d');
+      gradFake.width = gradFake.parentElement.offsetWidth || 240;
+      gradFake.height = 100;
+      const W = gradFake.width, H = gradFake.height;
+      ctx.fillStyle = '#0D1117';
+      ctx.fillRect(0, 0, W, H);
+      // Draw weak, uniform noise
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * W;
+        const h = 5 + Math.random() * 20;
+        ctx.fillStyle = `rgba(255,153,0,${0.1 + Math.random() * 0.2})`;
+        ctx.fillRect(x - 1, H - h, 2, h);
+      }
+      ctx.fillStyle = '#FF3366';
+      ctx.font = '9px Inter';
+      ctx.fillText('약하고 균일한 노이즈 → 낮은 Trace', 6, 14);
+    }
+  }
+
+  // Initial draw attempt
+  setTimeout(drawPatterns, 200);
+
+  // Redraw on window resize
+  window.addEventListener('resize', function() {
+    setTimeout(drawPatterns, 100);
+  });
+
+  // Also redraw when algorithm page is navigated to
+  const origNav = window._app && window._app.navigateTo;
+  document.addEventListener('click', function(e) {
+    const nav = e.target.closest('[data-nav]');
+    if (nav && nav.dataset.nav === 'algorithm') {
+      setTimeout(drawPatterns, 400);
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
